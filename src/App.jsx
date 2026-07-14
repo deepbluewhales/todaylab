@@ -2346,7 +2346,7 @@ export default function TodaysMeApp() {
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href =
-      "https://fonts.googleapis.com/css2?family=Song+Myung&family=Noto+Sans+KR:wght@400;500;700;900&display=swap";
+      "https://fonts.googleapis.com/css2?family=Gothic+A1:wght@700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap";
     document.head.appendChild(link);
     return () => document.head.removeChild(link);
   }, []);
@@ -2575,21 +2575,33 @@ export default function TodaysMeApp() {
   return (
     <div className="app-root">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Song+Myung&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
 
         .app-root {
-          --bg: #14112B;
-          --surface: #1E1A3D;
-          --surface2: #262048;
-          --gold: #E8B454;
-          --gold-soft: #F3D48A;
-          --coral: #FF7A6B;
-          --jade: #6FCF97;
-          --plum: #B98CE0;
-          --text-hi: #F7F3FF;
-          --text-lo: #A79CC9;
-          --line: rgba(232,180,84,0.16);
-          background: var(--bg);
+          --bg: #F3F5FC;
+          --surface: rgba(255,255,255,0.62);
+          --surface2: rgba(255,255,255,0.48);
+          --surface-solid: #FFFFFF;
+          --accent: #6C5CE7;
+          --accent-soft: rgba(108,92,231,0.10);
+          --amber: #FF9F45;
+          --amber-2: #FFC369;
+          --coral: #FF6B6B;
+          --coral-2: #FF9A76;
+          --violet: #7C5CFA;
+          --violet-2: #B69CFF;
+          --sky: #3E8EFF;
+          --sky-2: #6FD6FF;
+          --text-hi: #1F2333;
+          --text-lo: #838AA0;
+          --line: rgba(31,41,68,0.08);
+          background:
+            radial-gradient(circle at 10% 15%, rgba(255,154,158,0.40), transparent 42%),
+            radial-gradient(circle at 88% 10%, rgba(110,190,255,0.40), transparent 42%),
+            radial-gradient(circle at 20% 90%, rgba(255,214,140,0.35), transparent 42%),
+            radial-gradient(circle at 85% 85%, rgba(170,255,214,0.35), transparent 42%),
+            var(--bg);
+          background-attachment: fixed;
           color: var(--text-hi);
           font-family: 'Noto Sans KR', sans-serif;
           min-height: 100vh;
@@ -2604,30 +2616,29 @@ export default function TodaysMeApp() {
           display: flex;
           flex-direction: column;
           position: relative;
-          background:
-            radial-gradient(ellipse at top, rgba(232,180,84,0.08), transparent 55%),
-            var(--bg);
         }
-        .display-font { font-family: 'Song Myung', serif; }
+        .display-font { font-family: 'Gothic A1', sans-serif; font-weight: 800; letter-spacing: -0.01em; }
         .brush-rule {
-          height: 2px;
-          width: 56px;
-          background: linear-gradient(90deg, var(--gold), transparent);
-          border-radius: 2px;
-          margin: 10px auto 0;
+          height: 4px;
+          width: 40px;
+          background: linear-gradient(90deg, var(--violet), var(--sky));
+          border-radius: 999px;
+          margin: 12px auto 0;
         }
 
         header.top {
           padding: 22px 20px 14px;
-          border-bottom: 1px solid var(--line);
         }
         .top-row { display:flex; align-items:center; justify-content:space-between; }
-        .brand { font-size: 22px; letter-spacing: 0.02em; }
+        .brand { font-size: 22px; letter-spacing: -0.01em; }
         .date-chip {
           font-size: 12px;
           color: var(--text-lo);
-          border: 1px solid var(--line);
-          padding: 4px 10px;
+          background: var(--surface);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(255,255,255,0.7);
+          padding: 5px 12px;
           border-radius: 999px;
         }
         .reset-btn {
@@ -2641,61 +2652,88 @@ export default function TodaysMeApp() {
           cursor: pointer;
           padding: 4px;
         }
-        .reset-btn:hover { color: var(--gold-soft); }
+        .reset-btn:hover { color: var(--accent); }
 
         main.content {
           flex: 1;
-          padding: 26px 20px 110px;
+          padding: 16px 20px 110px;
         }
 
         .card {
+          position: relative;
+          overflow: hidden;
           background: var(--surface);
-          border: 1px solid var(--line);
-          border-radius: 18px;
-          padding: 22px 18px;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.7);
+          border-radius: 24px;
+          padding: 24px 20px;
+          box-shadow: 0 8px 32px rgba(31,41,68,0.08);
+        }
+        .card::before {
+          content: "";
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 50%;
+          background: linear-gradient(to bottom, rgba(255,255,255,0.55), transparent);
+          pointer-events: none;
         }
 
         .section-eyebrow {
           font-size: 12px;
-          letter-spacing: 0.14em;
-          color: var(--gold-soft);
+          letter-spacing: 0.12em;
+          color: var(--accent);
           text-transform: uppercase;
+          font-weight: 700;
+          position: relative;
         }
         .section-title {
-          font-size: 24px;
+          font-size: 25px;
           margin-top: 6px;
-          line-height: 1.35;
+          line-height: 1.3;
+          position: relative;
         }
         .section-sub {
           color: var(--text-lo);
           font-size: 13px;
           margin-top: 8px;
           line-height: 1.6;
+          position: relative;
         }
 
         .primary-btn {
+          position: relative;
+          overflow: hidden;
           margin-top: 20px;
           width: 100%;
-          background: linear-gradient(135deg, var(--gold), #C6893A);
-          color: #241A05;
+          background: linear-gradient(135deg, var(--amber-2), var(--amber));
+          color: #4A2A00;
           border: none;
-          border-radius: 14px;
+          border-radius: 16px;
           padding: 14px 0;
           font-size: 15px;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
           transition: transform 0.15s ease, box-shadow 0.15s ease;
-          box-shadow: 0 8px 20px rgba(232,180,84,0.18);
+          box-shadow: 0 10px 24px rgba(255,159,69,0.35);
+        }
+        .primary-btn::before {
+          content: "";
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 55%;
+          background: linear-gradient(to bottom, rgba(255,255,255,0.45), transparent);
+          pointer-events: none;
         }
         .primary-btn:hover { transform: translateY(-1px); }
         .primary-btn:disabled {
-          opacity: 0.5;
+          opacity: 0.45;
           cursor: default;
           transform: none;
         }
-        .primary-btn.coral { background: linear-gradient(135deg, var(--coral), #C24E42); color: #2C0C08; box-shadow: 0 8px 20px rgba(255,122,107,0.18);}
-        .primary-btn.jade { background: linear-gradient(135deg, var(--jade), #38935F); color: #0B2617; box-shadow: 0 8px 20px rgba(111,207,151,0.18);}
-        .primary-btn.plum { background: linear-gradient(135deg, var(--plum), #7C4FA8); color: #F7F0FC; box-shadow: 0 8px 20px rgba(185,140,224,0.2);}
+        .primary-btn.coral { background: linear-gradient(135deg, var(--coral-2), var(--coral)); color: #4A120A; box-shadow: 0 10px 24px rgba(255,107,107,0.35);}
+        .primary-btn.violet { background: linear-gradient(135deg, var(--violet-2), var(--violet)); color: #2A1B5E; box-shadow: 0 10px 24px rgba(124,92,250,0.35);}
+        .primary-btn.sky { background: linear-gradient(135deg, var(--sky-2), var(--sky)); color: #0B2C57; box-shadow: 0 10px 24px rgba(62,142,255,0.35);}
 
         .balls-row {
           display: flex;
@@ -2704,6 +2742,7 @@ export default function TodaysMeApp() {
           flex-wrap: wrap;
           margin: 26px 0 6px;
           min-height: 62px;
+          position: relative;
         }
         .ball {
           width: 52px;
@@ -2714,7 +2753,7 @@ export default function TodaysMeApp() {
           justify-content: center;
           font-weight: 900;
           font-size: 18px;
-          box-shadow: inset 0 -4px 8px rgba(0,0,0,0.18), 0 6px 14px rgba(0,0,0,0.35);
+          box-shadow: 0 6px 14px rgba(31,41,68,0.18), inset 0 -3px 6px rgba(0,0,0,0.08), inset 0 2px 3px rgba(255,255,255,0.5);
           animation: ballPop 0.45s cubic-bezier(.34,1.56,.64,1) both;
         }
         @keyframes ballPop {
@@ -2726,12 +2765,15 @@ export default function TodaysMeApp() {
           font-size: 12px;
           color: var(--text-lo);
           margin-top: 14px;
+          position: relative;
         }
 
         .food-stage {
+          position: relative;
           margin-top: 26px;
           background: var(--surface2);
-          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 18px;
           padding: 26px 16px;
           text-align: center;
           min-height: 96px;
@@ -2741,9 +2783,10 @@ export default function TodaysMeApp() {
           justify-content: center;
           gap: 6px;
         }
-        .food-name { font-size: 22px; font-weight: 700; }
+        .food-name { font-size: 22px; font-weight: 800; }
 
         .meal-list {
+          position: relative;
           margin-top: 16px;
           display: flex;
           flex-direction: column;
@@ -2751,7 +2794,8 @@ export default function TodaysMeApp() {
         }
         .meal-item {
           background: var(--surface2);
-          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 14px;
           padding: 12px 14px;
           display: flex;
           align-items: center;
@@ -2764,22 +2808,23 @@ export default function TodaysMeApp() {
         }
         .meal-tag {
           font-size: 11px;
-          color: var(--gold-soft);
-          background: rgba(232,180,84,0.1);
-          border: 1px solid var(--line);
+          color: var(--accent);
+          font-weight: 700;
+          background: var(--accent-soft);
+          border: 1px solid rgba(108,92,231,0.18);
           padding: 3px 9px;
           border-radius: 999px;
           flex-shrink: 0;
         }
-        .meal-name { font-size: 15px; font-weight: 700; }
+        .meal-name { font-size: 15px; font-weight: 800; }
 
         .food-list-panel {
           margin-top: 8px;
           max-height: 240px;
           overflow-y: auto;
           background: var(--surface2);
-          border: 1px solid var(--line);
-          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 14px;
           padding: 10px 4px;
           display: grid;
           grid-template-columns: repeat(2, 1fr);
@@ -2791,14 +2836,15 @@ export default function TodaysMeApp() {
           padding: 6px 10px;
         }
         .food-list-wrap {
+          position: relative;
           margin-top: 12px;
         }
         .food-search-input {
           width: 100%;
-          background: var(--surface2);
+          background: var(--surface-solid);
           border: 1px solid var(--line);
           color: var(--text-hi);
-          border-radius: 10px;
+          border-radius: 12px;
           padding: 10px 12px;
           font-size: 13px;
           font-family: inherit;
@@ -2814,10 +2860,10 @@ export default function TodaysMeApp() {
         }
         .food-add-input {
           flex: 1;
-          background: var(--surface2);
+          background: var(--surface-solid);
           border: 1px solid var(--line);
           color: var(--text-hi);
-          border-radius: 10px;
+          border-radius: 12px;
           padding: 10px 12px;
           font-size: 13px;
           font-family: inherit;
@@ -2827,30 +2873,32 @@ export default function TodaysMeApp() {
           outline-offset: 1px;
         }
         .food-add-btn {
-          background: var(--coral);
-          color: #2C0C08;
+          background: linear-gradient(135deg, var(--coral-2), var(--coral));
+          color: #4A120A;
           border: none;
-          border-radius: 10px;
+          border-radius: 12px;
           padding: 0 16px;
           font-size: 13px;
-          font-weight: 700;
+          font-weight: 800;
           cursor: pointer;
         }
         .food-add-msg {
           margin-top: 6px;
           font-size: 12px;
-          color: var(--gold-soft);
+          color: var(--accent);
         }
 
         .fortune-block {
+          position: relative;
           margin-top: 18px;
           padding-top: 16px;
           border-top: 1px solid var(--line);
         }
         .fortune-label {
           font-size: 12px;
-          color: var(--gold-soft);
-          letter-spacing: 0.08em;
+          color: var(--accent);
+          font-weight: 700;
+          letter-spacing: 0.06em;
         }
         .fortune-text {
           margin-top: 8px;
@@ -2858,6 +2906,7 @@ export default function TodaysMeApp() {
           line-height: 1.7;
         }
         .lucky-grid {
+          position: relative;
           margin-top: 22px;
           display: grid;
           grid-template-columns: repeat(3, 1fr);
@@ -2865,7 +2914,8 @@ export default function TodaysMeApp() {
         }
         .lucky-item {
           background: var(--surface2);
-          border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 14px;
           padding: 14px 8px;
           text-align: center;
           display: flex;
@@ -2874,7 +2924,7 @@ export default function TodaysMeApp() {
           gap: 5px;
         }
         .lucky-item .k { font-size: 11px; color: var(--text-lo); }
-        .lucky-item .v { font-size: 13px; font-weight: 700; }
+        .lucky-item .v { font-size: 13px; font-weight: 800; }
         .lucky-visual {
           height: 22px;
           display: flex;
@@ -2883,13 +2933,16 @@ export default function TodaysMeApp() {
         }
         .swatch {
           width: 20px; height: 20px; border-radius: 50%;
-          border: 2px solid rgba(255,255,255,0.25);
+          border: 2px solid rgba(255,255,255,0.8);
+          box-shadow: 0 2px 6px rgba(31,41,68,0.15);
         }
 
         .quote-stage {
+          position: relative;
           margin-top: 18px;
           background: var(--surface2);
-          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 18px;
           padding: 24px 20px;
           text-align: center;
         }
@@ -2899,9 +2952,11 @@ export default function TodaysMeApp() {
         }
 
         .ara-stage {
+          position: relative;
           margin-top: 26px;
           background: var(--surface2);
-          border-radius: 16px;
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 18px;
           padding: 34px 20px;
           text-align: center;
           min-height: 110px;
@@ -2912,6 +2967,7 @@ export default function TodaysMeApp() {
         .ara-text {
           font-size: 19px;
           line-height: 1.7;
+          font-weight: 700;
           animation: araIn 0.35s ease both;
         }
         @keyframes araIn {
@@ -2923,8 +2979,10 @@ export default function TodaysMeApp() {
           font-size: 12px;
           color: var(--text-lo);
           margin-top: 12px;
+          position: relative;
         }
         .cat-grid {
+          position: relative;
           margin-top: 20px;
           display: grid;
           grid-template-columns: repeat(3, 1fr);
@@ -2932,9 +2990,9 @@ export default function TodaysMeApp() {
         }
         .cat-btn {
           background: var(--surface2);
-          border: 1px solid var(--line);
+          border: 1px solid rgba(255,255,255,0.6);
           color: var(--text-hi);
-          border-radius: 12px;
+          border-radius: 14px;
           padding: 16px 6px;
           font-size: 13px;
           font-weight: 700;
@@ -2943,14 +3001,16 @@ export default function TodaysMeApp() {
           flex-direction: column;
           align-items: center;
           gap: 6px;
-          transition: border-color 0.15s ease, background 0.15s ease;
+          transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
         }
         .cat-btn:hover {
-          border-color: var(--plum);
-          background: rgba(185,140,224,0.1);
+          border-color: var(--violet);
+          background: rgba(124,92,250,0.08);
+          transform: translateY(-1px);
         }
         .cat-emoji { font-size: 22px; }
         .text-link-btn {
+          position: relative;
           display: block;
           margin: 14px auto 0;
           background: transparent;
@@ -2960,7 +3020,7 @@ export default function TodaysMeApp() {
           text-decoration: underline;
           cursor: pointer;
         }
-        .text-link-btn:hover { color: var(--gold-soft); }
+        .text-link-btn:hover { color: var(--accent); }
 
         /* 온보딩 */
         .onboard-wrap {
@@ -2971,60 +3031,76 @@ export default function TodaysMeApp() {
           justify-content: center;
         }
         .onboard-card {
+          position: relative;
+          overflow: hidden;
           width: 100%;
           background: var(--surface);
-          border: 1px solid var(--line);
-          border-radius: 20px;
-          padding: 30px 22px;
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.7);
+          border-radius: 26px;
+          padding: 32px 24px;
+          box-shadow: 0 12px 40px rgba(31,41,68,0.1);
+        }
+        .onboard-card::before {
+          content: "";
+          position: absolute;
+          top: 0; left: 0; right: 0;
+          height: 45%;
+          background: linear-gradient(to bottom, rgba(255,255,255,0.6), transparent);
+          pointer-events: none;
         }
         .onboard-title {
+          position: relative;
           font-size: 26px;
           text-align: center;
         }
         .onboard-sub {
+          position: relative;
           text-align: center;
           color: var(--text-lo);
           font-size: 13px;
           margin-top: 10px;
         }
-        .field { margin-top: 20px; }
+        .field { position: relative; margin-top: 20px; }
         .field label {
           font-size: 12px;
-          color: var(--gold-soft);
-          letter-spacing: 0.04em;
+          color: var(--accent);
+          font-weight: 700;
+          letter-spacing: 0.02em;
         }
         .field input, .field select {
           margin-top: 8px;
           width: 100%;
-          background: var(--surface2);
+          background: var(--surface-solid);
           border: 1px solid var(--line);
           color: var(--text-hi);
-          border-radius: 10px;
+          border-radius: 12px;
           padding: 11px 12px;
           font-size: 14px;
           font-family: inherit;
         }
         .field input:focus, .field select:focus {
-          outline: 2px solid var(--gold);
+          outline: 2px solid var(--violet);
           outline-offset: 1px;
         }
         .choice-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
         .choice-btn {
           flex: 1;
           min-width: 64px;
-          background: var(--surface2);
+          background: var(--surface-solid);
           border: 1px solid var(--line);
           color: var(--text-lo);
           padding: 9px 0;
-          border-radius: 10px;
+          border-radius: 12px;
           font-size: 13px;
           cursor: pointer;
         }
         .choice-btn.active {
-          background: rgba(232,180,84,0.14);
-          border-color: var(--gold);
-          color: var(--gold-soft);
-          font-weight: 700;
+          background: var(--accent-soft);
+          border-color: var(--violet);
+          color: var(--violet);
+          font-weight: 800;
         }
 
         /* 하단 탭바 */
@@ -3035,9 +3111,11 @@ export default function TodaysMeApp() {
           transform: translateX(-50%);
           width: 100%;
           max-width: 480px;
-          background: rgba(20,17,43,0.92);
-          backdrop-filter: blur(10px);
-          border-top: 1px solid var(--line);
+          background: rgba(255,255,255,0.72);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border-top: 1px solid rgba(255,255,255,0.7);
+          box-shadow: 0 -4px 24px rgba(31,41,68,0.06);
           display: flex;
           padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
           gap: 6px;
@@ -3053,10 +3131,11 @@ export default function TodaysMeApp() {
           gap: 4px;
           padding: 6px 0;
           font-size: 11px;
+          font-weight: 600;
           cursor: pointer;
-          border-radius: 12px;
+          border-radius: 14px;
         }
-        .tab-btn.active { color: var(--gold-soft); background: rgba(232,180,84,0.08); }
+        .tab-btn.active { color: var(--accent); background: var(--accent-soft); }
 
         @media (prefers-reduced-motion: reduce) {
           .ball { animation: none; }
@@ -3333,7 +3412,7 @@ export default function TodaysMeApp() {
                   </p>
 
                   {!fortuneResult ? (
-                    <button className="primary-btn jade" onClick={drawFortuneNow}>
+                    <button className="primary-btn violet" onClick={drawFortuneNow}>
                       <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                         <Sparkles size={16} />
                         오늘의 운세 보기
@@ -3405,7 +3484,7 @@ export default function TodaysMeApp() {
                   ) : (
                     <>
                       <p className="section-sub">
-                        <strong style={{ color: "var(--gold-soft)" }}>
+                        <strong style={{ color: "var(--accent)" }}>
                           {ORACLE_CATEGORIES.find((c) => c.key === araCategory)?.emoji} {araCategory}
                         </strong>{" "}
                         고민에 대한 답이에요. 몇 번이든 다시 뽑을 수 있어요.
@@ -3421,7 +3500,7 @@ export default function TodaysMeApp() {
                         )}
                       </div>
 
-                      <button className="primary-btn plum" onClick={drawAraNow}>
+                      <button className="primary-btn sky" onClick={drawAraNow}>
                         <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                           <HelpCircle size={16} />
                           {araResult ? "다시 물어보기" : "카드 뽑기"}
