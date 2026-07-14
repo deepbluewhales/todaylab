@@ -2383,6 +2383,11 @@ export default function TodaysMeApp() {
   const [foodResults, setFoodResults] = useState([]);
   const [foodSpinning, setFoodSpinning] = useState(false);
   const [foodSpinLabel, setFoodSpinLabel] = useState("");
+  const [showFoodList, setShowFoodList] = useState(false);
+  const [foodSearch, setFoodSearch] = useState("");
+  const [customFoods, setCustomFoods] = useState([]);
+  const [newFoodName, setNewFoodName] = useState("");
+  const [addFoodMsg, setAddFoodMsg] = useState("");
 
   const [fortuneResult, setFortuneResult] = useState(null);
 
@@ -2420,6 +2425,10 @@ export default function TodaysMeApp() {
     try {
       const saved = localStorage.getItem("todaysme_profile");
       if (saved) setProfile(JSON.parse(saved));
+    } catch (e) {}
+    try {
+      const savedFoods = localStorage.getItem("todaysme_custom_foods");
+      if (savedFoods) setCustomFoods(JSON.parse(savedFoods));
     } catch (e) {}
   }, []);
 
@@ -2466,16 +2475,54 @@ export default function TodaysMeApp() {
 
   const MEAL_LABELS = ["아침", "점심", "저녁"];
 
+  const effectiveFoodList = useMemo(
+    () => [...FOOD_LIST, ...customFoods],
+    [customFoods]
+  );
+
+  function isDuplicateFood(name) {
+    const norm = name.trim().replace(/\s+/g, "");
+    return effectiveFoodList.some(
+      (f) => f.name.trim().replace(/\s+/g, "") === norm
+    );
+  }
+
+  function addCustomFood() {
+    const name = newFoodName.trim();
+    if (!name) return;
+    if (isDuplicateFood(name)) {
+      setAddFoodMsg("이미 목록에 있는 메뉴예요.");
+      return;
+    }
+    const updated = [...customFoods, { emoji: "🆕", name }];
+    setCustomFoods(updated);
+    try {
+      localStorage.setItem("todaysme_custom_foods", JSON.stringify(updated));
+    } catch (e) {}
+    setNewFoodName("");
+    setAddFoodMsg("메뉴를 추가했어요!");
+    setTimeout(() => setAddFoodMsg(""), 2000);
+  }
+
+  const foodTriplet = useMemo(() => {
+    if (!profileString || effectiveFoodList.length < 3) return [];
+    const rng = makeRng(profileString, "food_day");
+    const idxs = new Set();
+    while (idxs.size < 3) {
+      idxs.add(Math.floor(rng() * effectiveFoodList.length));
+    }
+    return [...idxs].map((i) => effectiveFoodList[i]);
+  }, [profileString, effectiveFoodList]);
+
   function drawFoodNow() {
-    if (foodSpinning || foodResults.length >= 3) return;
+    if (foodSpinning || foodResults.length >= 3 || foodTriplet.length < 3) return;
     const mealIndex = foodResults.length;
-    const rng = makeRng(profileString, `food_${mealIndex + 1}`);
-    const final = pick(rng, FOOD_LIST);
+    const final = foodTriplet[mealIndex];
     setFoodSpinning(true);
     let ticks = 0;
     const totalTicks = 14;
     const interval = setInterval(() => {
-      const r = FOOD_LIST[Math.floor(Math.random() * FOOD_LIST.length)];
+      const r = effectiveFoodList[Math.floor(Math.random() * effectiveFoodList.length)];
       setFoodSpinLabel(`${r.emoji} ${r.name}`);
       ticks++;
       if (ticks >= totalTicks) {
@@ -2725,6 +2772,75 @@ export default function TodaysMeApp() {
           flex-shrink: 0;
         }
         .meal-name { font-size: 15px; font-weight: 700; }
+
+        .food-list-panel {
+          margin-top: 8px;
+          max-height: 240px;
+          overflow-y: auto;
+          background: var(--surface2);
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px 4px;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 2px;
+        }
+        .food-list-item {
+          font-size: 12.5px;
+          color: var(--text-lo);
+          padding: 6px 10px;
+        }
+        .food-list-wrap {
+          margin-top: 12px;
+        }
+        .food-search-input {
+          width: 100%;
+          background: var(--surface2);
+          border: 1px solid var(--line);
+          color: var(--text-hi);
+          border-radius: 10px;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-family: inherit;
+        }
+        .food-search-input:focus {
+          outline: 2px solid var(--coral);
+          outline-offset: 1px;
+        }
+        .food-add-row {
+          display: flex;
+          gap: 8px;
+          margin-top: 8px;
+        }
+        .food-add-input {
+          flex: 1;
+          background: var(--surface2);
+          border: 1px solid var(--line);
+          color: var(--text-hi);
+          border-radius: 10px;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-family: inherit;
+        }
+        .food-add-input:focus {
+          outline: 2px solid var(--coral);
+          outline-offset: 1px;
+        }
+        .food-add-btn {
+          background: var(--coral);
+          color: #2C0C08;
+          border: none;
+          border-radius: 10px;
+          padding: 0 16px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .food-add-msg {
+          margin-top: 6px;
+          font-size: 12px;
+          color: var(--gold-soft);
+        }
 
         .fortune-block {
           margin-top: 18px;
@@ -3151,6 +3267,59 @@ export default function TodaysMeApp() {
 
                   {foodResults.length >= 3 && (
                     <div className="locked-tag">🔒 내일 다시 새로운 삼시세끼가 열려요</div>
+                  )}
+
+                  <button
+                    className="text-link-btn"
+                    onClick={() => setShowFoodList((v) => !v)}
+                  >
+                    {showFoodList ? "메뉴 목록 닫기" : `전체 메뉴 목록 보기 (${effectiveFoodList.length}개)`}
+                  </button>
+
+                  {showFoodList && (
+                    <div className="food-list-wrap">
+                      <input
+                        type="text"
+                        className="food-search-input"
+                        placeholder="메뉴 검색"
+                        value={foodSearch}
+                        onChange={(e) => setFoodSearch(e.target.value)}
+                      />
+
+                      <div className="food-add-row">
+                        <input
+                          type="text"
+                          className="food-add-input"
+                          placeholder="새 메뉴 이름 추가하기"
+                          value={newFoodName}
+                          onChange={(e) => {
+                            setNewFoodName(e.target.value);
+                            setAddFoodMsg("");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") addCustomFood();
+                          }}
+                        />
+                        <button className="food-add-btn" onClick={addCustomFood}>
+                          추가
+                        </button>
+                      </div>
+                      {addFoodMsg && <div className="food-add-msg">{addFoodMsg}</div>}
+
+                      <div className="food-list-panel">
+                        {effectiveFoodList
+                          .filter((f) =>
+                            f.name
+                              .replace(/\s+/g, "")
+                              .includes(foodSearch.trim().replace(/\s+/g, ""))
+                          )
+                          .map((f, i) => (
+                            <div className="food-list-item" key={i}>
+                              {f.emoji} {f.name}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
