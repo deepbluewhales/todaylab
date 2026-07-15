@@ -30,9 +30,18 @@ serve(async (req) => {
   }
 
   try {
+    console.log("[admin-actions] 요청 수신");
+
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "인증 토큰이 없습니다." }, 401);
+    if (!authHeader) {
+      console.log("[admin-actions] Authorization 헤더 없음");
+      return json({ error: "인증 토큰이 없습니다." }, 401);
+    }
     const jwt = authHeader.replace("Bearer ", "");
+
+    console.log("[admin-actions] SUPABASE_URL 존재:", !!SUPABASE_URL);
+    console.log("[admin-actions] ANON_KEY 존재:", !!ANON_KEY);
+    console.log("[admin-actions] SERVICE_ROLE_KEY 존재:", !!SERVICE_ROLE_KEY);
 
     // 1) 호출자 신원 확인 (anon key + 호출자 JWT)
     const callerClient = createClient(SUPABASE_URL, ANON_KEY, {
@@ -40,9 +49,11 @@ serve(async (req) => {
     });
     const { data: userData, error: userError } = await callerClient.auth.getUser(jwt);
     if (userError || !userData.user) {
+      console.log("[admin-actions] 호출자 인증 실패:", userError?.message);
       return json({ error: "인증에 실패했습니다." }, 401);
     }
     const callerId = userData.user.id;
+    console.log("[admin-actions] 호출자 확인됨:", callerId);
 
     // 2) service_role 클라이언트 (RLS 우회 - 여기서만 사용)
     const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -54,39 +65,48 @@ serve(async (req) => {
       .eq("id", callerId)
       .maybeSingle();
 
+    console.log("[admin-actions] 관리자 프로필 조회:", JSON.stringify(callerProfile), profileError?.message);
+
     if (profileError || !callerProfile || !callerProfile.is_admin) {
+      console.log("[admin-actions] 관리자 아님 - 거부");
       return json({ error: "관리자만 사용할 수 있는 기능이에요." }, 403);
     }
 
     const body = await req.json();
     const { action, targetUserId } = body || {};
+    console.log("[admin-actions] 요청 내용:", action, targetUserId);
 
     if (!action || !targetUserId) {
       return json({ error: "요청 형식이 올바르지 않습니다." }, 400);
     }
 
     if (action === "reset-password") {
-      const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
-        password: RESET_PASSWORD,
-      });
+      const { data: resetData, error } = await adminClient.auth.admin.updateUserById(
+        targetUserId,
+        { password: RESET_PASSWORD }
+      );
+      console.log("[admin-actions] 비밀번호 초기화 결과:", JSON.stringify(resetData?.user?.id), error?.message);
       if (error) return json({ error: error.message }, 400);
 
-      await adminClient
+      const { error: profileUpdateError } = await adminClient
         .from("profiles")
         .update({ must_change_password: true })
         .eq("id", targetUserId);
+      console.log("[admin-actions] must_change_password 업데이트 에러:", profileUpdateError?.message);
 
       return json({ tempPassword: RESET_PASSWORD });
     }
 
     if (action === "delete-user") {
       const { error } = await adminClient.auth.admin.deleteUser(targetUserId);
+      console.log("[admin-actions] 사용자 삭제 결과 에러:", error?.message);
       if (error) return json({ error: error.message }, 400);
       return json({ success: true });
     }
 
     return json({ error: "알 수 없는 작업입니다." }, 400);
   } catch (e) {
+    console.log("[admin-actions] 예외 발생:", String(e));
     return json({ error: String(e) }, 500);
   }
 });

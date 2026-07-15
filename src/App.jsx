@@ -2405,6 +2405,7 @@ export default function TodaysMeApp() {
   const [lottoRevealing, setLottoRevealing] = useState(false);
   const [revealCount, setRevealCount] = useState(0);
   const [weeklyLotto, setWeeklyLotto] = useState([]);
+  const [dailyLoaded, setDailyLoaded] = useState(false);
 
   const [foodResults, setFoodResults] = useState([]);
   const [foodSpinning, setFoodSpinning] = useState(false);
@@ -2465,6 +2466,7 @@ export default function TodaysMeApp() {
     setAraCategory(null);
     setIsAdmin(false);
     setShowAdmin(false);
+    setDailyLoaded(false);
   }
 
   function formatPhoneNumber(value) {
@@ -2572,7 +2574,11 @@ export default function TodaysMeApp() {
       },
       body: JSON.stringify({ action, targetUserId }),
     });
-    return res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: body.error || body.message || `요청 실패 (${res.status})` };
+    }
+    return body;
   }
 
   async function issueTempPassword(row) {
@@ -2716,6 +2722,7 @@ export default function TodaysMeApp() {
   // 오늘 이미 뽑은 결과 불러오기 (Supabase)
   useEffect(() => {
     if (!supabase || !session || !profileString) return;
+    setDailyLoaded(false);
     supabase
       .from("daily_results")
       .select("*")
@@ -2728,13 +2735,15 @@ export default function TodaysMeApp() {
           if (data.food_results) setFoodResults(data.food_results);
           if (data.fortune_result) setFortuneResult(data.fortune_result);
         }
+        setDailyLoaded(true);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, profileString]);
 
   // 오늘 결과가 바뀔 때마다 Supabase에 저장 (다른 기기와 동기화)
+  // 주의: 위 "불러오기"가 끝나기 전에는 저장하지 않음 (안 그러면 불러오기 전 빈 값으로 덮어써짐)
   useEffect(() => {
-    if (!supabase || !session || !profileString) return;
+    if (!supabase || !session || !profileString || !dailyLoaded) return;
     supabase
       .from("daily_results")
       .upsert(
@@ -2749,7 +2758,7 @@ export default function TodaysMeApp() {
         { onConflict: "user_id,date" }
       )
       .then(() => {});
-  }, [lottoResult, foodResults, fortuneResult, session, profileString, todayStr]);
+  }, [lottoResult, foodResults, fortuneResult, session, profileString, todayStr, dailyLoaded]);
 
   // 이번 주(월~금) 로또 번호 모음 계산 (Supabase에서 조회)
   useEffect(() => {
