@@ -57,3 +57,37 @@ Vercel에 배포할 때는 **Vercel 프로젝트 Settings → Environment Variab
 
 ## 비밀번호를 잊은 사용자 본인이 직접 재설정하려면
 로그인 화면 하단의 **"비밀번호를 잊으셨나요?"** 링크로 본인이 직접 재설정 메일을 요청할 수도 있습니다.
+
+## 관리자 기능 (임시 비밀번호 발급 / 사용자 삭제) 배포하기
+
+이 두 기능은 보안상 Supabase **Edge Function**을 통해서만 동작해요 (service_role 키를 브라우저에 노출시키지 않기 위함). 처음 한 번만 아래 절차로 배포하면 됩니다.
+
+### 1. DB 마이그레이션
+이미 배포한 적이 있다면, `add-must-change-password.sql` 파일 내용을 Supabase SQL Editor에서 한 번 실행하세요.
+
+### 2. Supabase CLI 설치
+```
+npm install -g supabase
+```
+
+### 3. 로그인 & 프로젝트 연결
+```
+supabase login
+supabase link --project-ref 프로젝트참조ID
+```
+(프로젝트참조ID는 Supabase 대시보드 URL이나 Settings → General에서 확인 가능해요, 예: `abcdefghijk`)
+
+### 4. Edge Function 배포
+프로젝트 루트(이 README가 있는 폴더)에서:
+```
+supabase functions deploy admin-actions
+```
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`는 Supabase가 Edge Function 실행 환경에 **자동으로 제공**하므로 따로 설정할 필요 없어요.
+
+### 5. 완료
+배포가 끝나면 관리자 페이지의 "임시 비밀번호 발급" / "사용자 삭제" 버튼이 정상 동작해요.
+
+## 변경된 로그인 플로우
+- 관리자가 "임시 비밀번호 발급"을 누르면 화면에 임시 비밀번호가 표시돼요 (다시 볼 수 없으니 그 자리에서 사용자에게 전달해주세요 - 카카오톡/문자 등으로)
+- 해당 사용자가 그 임시 비밀번호로 로그인하면, 앱을 쓰기 전에 **"비밀번호 변경이 필요해요"** 화면이 먼저 뜨고, 새 비밀번호로 바꿔야 넘어갈 수 있어요

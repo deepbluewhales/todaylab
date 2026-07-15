@@ -2374,6 +2374,9 @@ export default function TodaysMeApp() {
   const [newPassword, setNewPassword] = useState("");
   const [recoveryMsg, setRecoveryMsg] = useState("");
   const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [tempPasswordShown, setTempPasswordShown] = useState({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [form, setForm] = useState({
     birth: "",
     sijin: "모름",
@@ -2525,9 +2528,16 @@ export default function TodaysMeApp() {
       if (error) {
         setRecoveryMsg(error.message);
       } else {
+        if (session) {
+          await supabase
+            .from("profiles")
+            .update({ must_change_password: false })
+            .eq("id", session.user.id);
+        }
         setRecoveryMsg("비밀번호가 변경됐어요.");
         setTimeout(() => {
           setRecoveryMode(false);
+          setMustChangePassword(false);
           setNewPassword("");
           setRecoveryMsg("");
         }, 1200);
@@ -2550,16 +2560,47 @@ export default function TodaysMeApp() {
     setAdminLoading(false);
   }
 
-  async function sendCustomerPasswordReset(email) {
-    if (!supabase || !email) return;
-    setAdminMsg((m) => ({ ...m, [email]: "전송 중..." }));
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+  async function callAdminFunction(action, targetUserId) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const res = await fetch(`${supabaseUrl}/functions/v1/admin-actions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action, targetUserId }),
     });
-    setAdminMsg((m) => ({
-      ...m,
-      [email]: error ? `실패: ${error.message}` : "재설정 메일 전송됨",
-    }));
+    return res.json();
+  }
+
+  async function issueTempPassword(row) {
+    setAdminMsg((m) => ({ ...m, [row.id]: "발급 중..." }));
+    try {
+      const result = await callAdminFunction("reset-password", row.id);
+      if (result.error) {
+        setAdminMsg((m) => ({ ...m, [row.id]: `실패: ${result.error}` }));
+      } else {
+        setTempPasswordShown((m) => ({ ...m, [row.id]: result.tempPassword }));
+        setAdminMsg((m) => ({ ...m, [row.id]: "임시 비밀번호가 발급됐어요." }));
+      }
+    } catch (e) {
+      setAdminMsg((m) => ({ ...m, [row.id]: "요청에 실패했어요. Edge Function 배포 여부를 확인해주세요." }));
+    }
+  }
+
+  async function deleteCustomer(row) {
+    setAdminMsg((m) => ({ ...m, [row.id]: "삭제 중..." }));
+    try {
+      const result = await callAdminFunction("delete-user", row.id);
+      if (result.error) {
+        setAdminMsg((m) => ({ ...m, [row.id]: `실패: ${result.error}` }));
+      } else {
+        setAdminCustomers((prev) => prev.filter((c) => c.id !== row.id));
+      }
+    } catch (e) {
+      setAdminMsg((m) => ({ ...m, [row.id]: "요청에 실패했어요. Edge Function 배포 여부를 확인해주세요." }));
+    }
+    setConfirmDeleteId(null);
   }
 
   function weatherCodeToEmoji(code) {
@@ -2654,6 +2695,7 @@ export default function TodaysMeApp() {
           return;
         }
         setIsAdmin(!!data.is_admin);
+        setMustChangePassword(!!data.must_change_password);
         // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
         if (data.birth) {
           setProfile({
@@ -3216,6 +3258,49 @@ export default function TodaysMeApp() {
           border-radius: 10px;
           cursor: pointer;
         }
+        .admin-row-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .admin-delete-btn {
+          background: transparent;
+          border: 1px solid rgba(255,107,107,0.35);
+          color: var(--coral);
+          font-size: 12px;
+          font-weight: 700;
+          padding: 7px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .admin-delete-btn.confirm {
+          background: var(--coral);
+          color: #4A120A;
+          border-color: transparent;
+        }
+        .admin-cancel-btn {
+          background: transparent;
+          border: 1px solid var(--line);
+          color: var(--text-lo);
+          font-size: 12px;
+          font-weight: 700;
+          padding: 7px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .admin-temp-pw {
+          margin-top: 8px;
+          font-size: 12.5px;
+          color: var(--text-hi);
+          background: var(--accent-soft);
+          border: 1px solid rgba(108,92,231,0.2);
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .admin-temp-pw-note {
+          color: var(--text-lo);
+          font-size: 11px;
+        }
         .admin-row-msg {
           margin-top: 6px;
           font-size: 11.5px;
@@ -3714,6 +3799,39 @@ export default function TodaysMeApp() {
           <div className="onboard-wrap">
             <div style={{ color: "var(--text-lo)", fontSize: 13 }}>불러오는 중...</div>
           </div>
+        ) : mustChangePassword ? (
+          <div className="onboard-wrap">
+            <div className="onboard-card">
+              <div className="onboard-title display-font">비밀번호 변경이 필요해요</div>
+              <div className="brush-rule" />
+              <p className="onboard-sub">
+                관리자가 임시 비밀번호를 발급했어요. 계속 사용하려면 새 비밀번호로 바꿔주세요.
+              </p>
+
+              <div className="field">
+                <label>새 비밀번호</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="6자 이상"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSetNewPassword();
+                  }}
+                />
+              </div>
+
+              {recoveryMsg && <div className="auth-msg">{recoveryMsg}</div>}
+
+              <button
+                className="primary-btn"
+                disabled={recoverySubmitting}
+                onClick={handleSetNewPassword}
+              >
+                {recoverySubmitting ? "처리 중..." : "비밀번호 변경"}
+              </button>
+            </div>
+          </div>
         ) : !profile ? (
           <div className="onboard-wrap">
             <div className="onboard-card">
@@ -3834,10 +3952,10 @@ export default function TodaysMeApp() {
             <main className="content">
               {showAdmin ? (
                 <div className="card">
-                  <div className="section-eyebrow">관리자 · 고객 관리</div>
-                  <div className="section-title display-font">고객 목록</div>
+                  <div className="section-eyebrow">관리자 · 사용자 관리</div>
+                  <div className="section-title display-font">사용자 목록</div>
                   <p className="section-sub">
-                    가입한 사용자 목록이에요. 비밀번호를 잊은 고객에게 재설정 메일을 보낼 수 있어요.
+                    가입한 사용자 목록이에요. 임시 비밀번호를 발급하거나 계정을 삭제할 수 있어요.
                   </p>
 
                   <input
@@ -3877,20 +3995,58 @@ export default function TodaysMeApp() {
                                 {c.mbti ? `${c.mbti} · ${c.blood}형` : "온보딩 미완료"}
                               </div>
                             </div>
-                            <button
-                              className="admin-reset-btn"
-                              onClick={() => sendCustomerPasswordReset(c.email)}
-                            >
-                              비밀번호 재설정 메일
-                            </button>
-                            {adminMsg[c.email] && (
-                              <div className="admin-row-msg">{adminMsg[c.email]}</div>
+
+                            <div className="admin-row-actions">
+                              <button
+                                className="admin-reset-btn"
+                                onClick={() => issueTempPassword(c)}
+                              >
+                                임시 비밀번호 발급
+                              </button>
+                              {!c.is_admin && (
+                                confirmDeleteId === c.id ? (
+                                  <>
+                                    <button
+                                      className="admin-delete-btn confirm"
+                                      onClick={() => deleteCustomer(c)}
+                                    >
+                                      정말 삭제
+                                    </button>
+                                    <button
+                                      className="admin-cancel-btn"
+                                      onClick={() => setConfirmDeleteId(null)}
+                                    >
+                                      취소
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className="admin-delete-btn"
+                                    onClick={() => setConfirmDeleteId(c.id)}
+                                  >
+                                    사용자 삭제
+                                  </button>
+                                )
+                              )}
+                            </div>
+
+                            {tempPasswordShown[c.id] && (
+                              <div className="admin-temp-pw">
+                                임시 비밀번호: <strong>{tempPasswordShown[c.id]}</strong>
+                                <span className="admin-temp-pw-note">
+                                  {" "}
+                                  (다시 확인할 수 없어요 - 지금 전달해주세요)
+                                </span>
+                              </div>
+                            )}
+                            {adminMsg[c.id] && (
+                              <div className="admin-row-msg">{adminMsg[c.id]}</div>
                             )}
                           </div>
                         ))}
                       {adminCustomers.length === 0 && (
                         <div style={{ fontSize: 13, color: "var(--text-lo)" }}>
-                          고객이 없어요.
+                          사용자가 없어요.
                         </div>
                       )}
                     </div>

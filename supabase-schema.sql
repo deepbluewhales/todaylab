@@ -8,6 +8,7 @@ create table if not exists profiles (
   phone text,
   email text,
   is_admin boolean default false,
+  must_change_password boolean default false,
   birth date,
   sijin text,
   gender text,
@@ -19,14 +20,22 @@ create table if not exists profiles (
 
 alter table profiles enable row level security;
 
+-- 재귀 없이 관리자 여부만 확인하는 함수 (security definer로 RLS를 우회해서 조회)
+create or replace function is_admin_user()
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select coalesce((select is_admin from profiles where id = auth.uid()), false);
+$$;
+
 -- 본인 프로필은 항상 조회 가능 + 관리자(is_admin=true)는 전체 프로필 조회 가능
 create policy "profiles_select_own_or_admin"
   on profiles for select
   using (
     auth.uid() = id
-    or exists (
-      select 1 from profiles p where p.id = auth.uid() and p.is_admin = true
-    )
+    or is_admin_user()
   );
 
 create policy "profiles_insert_own"
