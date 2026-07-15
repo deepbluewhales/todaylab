@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Ticket, UtensilsCrossed, Sparkles, User2, HelpCircle, Quote } from "lucide-react";
+import { Ticket, UtensilsCrossed, Sparkles, User2, HelpCircle, Quote, LogOut } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 /* ───────────────────────── 시드 유틸 ───────────────────────── */
 
@@ -2352,6 +2353,27 @@ export default function TodaysMeApp() {
   }, []);
 
   const [profile, setProfile] = useState(null);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup"
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [authPhone, setAuthPhone] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authMsg, setAuthMsg] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminCustomers, setAdminCustomers] = useState([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminMsg, setAdminMsg] = useState({});
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [recoveryMsg, setRecoveryMsg] = useState("");
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
   const [form, setForm] = useState({
     birth: "",
     sijin: "모름",
@@ -2397,18 +2419,8 @@ export default function TodaysMeApp() {
   const [araCategory, setAraCategory] = useState(null);
   const [weatherEmoji, setWeatherEmoji] = useState(null);
 
-  function startProfile() {
-    if (!form.birth) return;
-    const newProfile = { ...form };
-    setProfile(newProfile);
-    try {
-      localStorage.setItem("todaysme_profile", JSON.stringify(newProfile));
-    } catch (e) {
-      /* localStorage unavailable (e.g. Claude 아티팩트 미리보기) - 세션 동안만 유지됩니다 */
-    }
-  }
-
   function resetProfile() {
+    // "정보 다시 입력": 온보딩 폼을 다시 보여주되, 계정은 유지 (로그아웃 아님)
     setProfile(null);
     setLottoResult(null);
     setFoodResults([]);
@@ -2417,9 +2429,136 @@ export default function TodaysMeApp() {
     setAraCount(0);
     setAraCategory(null);
     setRevealCount(0);
+  }
+
+  async function startProfile() {
+    if (!form.birth || !session) return;
+    const newProfile = { ...form };
+    setProfile(newProfile);
+    if (!supabase) return;
     try {
-      localStorage.removeItem("todaysme_profile");
+      await supabase.from("profiles").upsert({
+        id: session.user.id,
+        birth: newProfile.birth,
+        sijin: newProfile.sijin,
+        gender: newProfile.gender,
+        mbti: newProfile.mbti,
+        blood: newProfile.blood,
+        custom_foods: customFoods,
+        updated_at: new Date().toISOString(),
+      });
     } catch (e) {}
+  }
+
+  async function handleSignOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setProfile(null);
+    setLottoResult(null);
+    setFoodResults([]);
+    setFortuneResult(null);
+    setCustomFoods([]);
+    setAraResult(null);
+    setAraCount(0);
+    setAraCategory(null);
+    setIsAdmin(false);
+    setShowAdmin(false);
+  }
+
+  async function handleAuthSubmit() {
+    if (!supabase) return;
+    setAuthError("");
+    setAuthMsg("");
+    if (!authEmail || !authPassword) {
+      setAuthError("이메일과 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (authMode === "signup" && (!authName || !authPhone)) {
+      setAuthError("이름과 연락처도 입력해주세요.");
+      return;
+    }
+    setAuthSubmitting(true);
+    try {
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) {
+          setAuthError(error.message);
+        } else if (data.session) {
+          // 이메일 인증이 꺼져있으면 가입 즉시 로그인 세션이 생겨요 → 바로 프로필 기본정보 저장
+          await supabase.from("profiles").upsert({
+            id: data.user.id,
+            name: authName,
+            phone: authPhone,
+            email: authEmail,
+            updated_at: new Date().toISOString(),
+          });
+        } else {
+          setAuthMsg(
+            "가입 확인 메일을 보냈어요. Supabase 설정에서 이메일 인증을 껐다면 이 메시지는 뜨지 않아야 해요 — 대시보드 설정을 확인해주세요."
+          );
+          setAuthMode("signin");
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) setAuthError(error.message);
+      }
+    } catch (e) {
+      setAuthError("문제가 발생했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
+
+  async function handleSetNewPassword() {
+    if (!supabase || !newPassword) return;
+    setRecoverySubmitting(true);
+    setRecoveryMsg("");
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setRecoveryMsg(error.message);
+      } else {
+        setRecoveryMsg("비밀번호가 변경됐어요.");
+        setTimeout(() => {
+          setRecoveryMode(false);
+          setNewPassword("");
+          setRecoveryMsg("");
+        }, 1200);
+      }
+    } catch (e) {
+      setRecoveryMsg("문제가 발생했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setRecoverySubmitting(false);
+    }
+  }
+
+  async function loadAdminCustomers() {
+    if (!supabase) return;
+    setAdminLoading(true);
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, name, phone, email, mbti, blood, birth, is_admin, updated_at")
+      .order("updated_at", { ascending: false });
+    setAdminCustomers(data || []);
+    setAdminLoading(false);
+  }
+
+  async function sendCustomerPasswordReset(email) {
+    if (!supabase || !email) return;
+    setAdminMsg((m) => ({ ...m, [email]: "전송 중..." }));
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    setAdminMsg((m) => ({
+      ...m,
+      [email]: error ? `실패: ${error.message}` : "재설정 메일 전송됨",
+    }));
   }
 
   function weatherCodeToEmoji(code) {
@@ -2459,47 +2598,99 @@ export default function TodaysMeApp() {
     );
   }, []);
 
-  // 저장된 프로필 불러오기 (독립 배포판에서만 동작 - Claude 아티팩트 미리보기에서는 무시됨)
+  // 로그인 세션 감시 (Supabase Auth)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("todaysme_profile");
-      if (saved) setProfile(JSON.parse(saved));
-    } catch (e) {}
-    try {
-      const savedFoods = localStorage.getItem("todaysme_custom_foods");
-      if (savedFoods) setCustomFoods(JSON.parse(savedFoods));
-    } catch (e) {}
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+      }
+      if (!newSession) {
+        setProfile(null);
+        setCustomFoods([]);
+        setIsAdmin(false);
+      }
+    });
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  // 오늘 이미 뽑은 결과 불러오기
+  // 로그인되면 내 프로필 불러오기 (다른 기기에서도 동일하게 보임)
   useEffect(() => {
-    if (!profileString) return;
-    try {
-      const raw = localStorage.getItem(`todaysme_daily_${todayStr}`);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data.lottoResult) setLottoResult(data.lottoResult);
-        if (data.foodResults) setFoodResults(data.foodResults);
-        if (data.fortuneResult) setFortuneResult(data.fortuneResult);
-      }
-    } catch (e) {}
+    if (!supabase || !session) return;
+    setProfileLoading(true);
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setIsAdmin(!!data.is_admin);
+          // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
+          if (data.birth) {
+            setProfile({
+              birth: data.birth,
+              sijin: data.sijin,
+              gender: data.gender,
+              mbti: data.mbti,
+              blood: data.blood,
+            });
+          }
+          setCustomFoods(data.custom_foods || []);
+        }
+        setProfileLoading(false);
+      });
+  }, [session]);
+
+  // 오늘 이미 뽑은 결과 불러오기 (Supabase)
+  useEffect(() => {
+    if (!supabase || !session || !profileString) return;
+    supabase
+      .from("daily_results")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .eq("date", todayStr)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          if (data.lotto_result) setLottoResult(data.lotto_result);
+          if (data.food_results) setFoodResults(data.food_results);
+          if (data.fortune_result) setFortuneResult(data.fortune_result);
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileString]);
+  }, [session, profileString]);
 
-  // 오늘 결과가 바뀔 때마다 저장
+  // 오늘 결과가 바뀔 때마다 Supabase에 저장 (다른 기기와 동기화)
   useEffect(() => {
-    if (!profileString) return;
-    try {
-      localStorage.setItem(
-        `todaysme_daily_${todayStr}`,
-        JSON.stringify({ lottoResult, foodResults, fortuneResult })
-      );
-    } catch (e) {}
-  }, [lottoResult, foodResults, fortuneResult, profileString, todayStr]);
+    if (!supabase || !session || !profileString) return;
+    supabase
+      .from("daily_results")
+      .upsert(
+        {
+          user_id: session.user.id,
+          date: todayStr,
+          lotto_result: lottoResult,
+          food_results: foodResults,
+          fortune_result: fortuneResult,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,date" }
+      )
+      .then(() => {});
+  }, [lottoResult, foodResults, fortuneResult, session, profileString, todayStr]);
 
-  // 이번 주(월~금) 로또 번호 모음 계산
+  // 이번 주(월~금) 로또 번호 모음 계산 (Supabase에서 조회)
   useEffect(() => {
-    if (!profileString) return;
+    if (!supabase || !session || !profileString) return;
     const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
     const now = new Date();
     const day = now.getDay(); // 0=일 ... 6=토
@@ -2507,27 +2698,34 @@ export default function TodaysMeApp() {
     const monday = new Date(now);
     monday.setDate(now.getDate() + mondayOffset);
 
-    const week = [];
+    const dates = [];
     for (let i = 0; i < 5; i++) {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const dateStr = d.toLocaleDateString("en-CA");
-      let numbers = null;
-      if (dateStr === todayStr) {
-        numbers = lottoResult;
-      } else {
-        try {
-          const raw = localStorage.getItem(`todaysme_daily_${dateStr}`);
-          if (raw) {
-            const data = JSON.parse(raw);
-            if (data.lottoResult) numbers = data.lottoResult;
-          }
-        } catch (e) {}
-      }
-      week.push({ dateStr, label: WEEKDAY_LABELS[d.getDay()], numbers });
+      dates.push({ dateStr: d.toLocaleDateString("en-CA"), weekday: d.getDay() });
     }
-    setWeeklyLotto(week);
-  }, [profileString, todayStr, lottoResult]);
+
+    supabase
+      .from("daily_results")
+      .select("date, lotto_result")
+      .eq("user_id", session.user.id)
+      .in(
+        "date",
+        dates.map((d) => d.dateStr)
+      )
+      .then(({ data }) => {
+        const byDate = {};
+        (data || []).forEach((row) => {
+          byDate[row.date] = row.lotto_result;
+        });
+        const week = dates.map((d) => ({
+          dateStr: d.dateStr,
+          label: WEEKDAY_LABELS[d.weekday],
+          numbers: d.dateStr === todayStr ? lottoResult : byDate[d.dateStr] || null,
+        }));
+        setWeeklyLotto(week);
+      });
+  }, [profileString, todayStr, lottoResult, session]);
 
   function drawLottoNow() {
     if (lottoRevealing || lottoResult) return;
@@ -2565,9 +2763,13 @@ export default function TodaysMeApp() {
     }
     const updated = [...customFoods, { emoji: "🆕", name }];
     setCustomFoods(updated);
-    try {
-      localStorage.setItem("todaysme_custom_foods", JSON.stringify(updated));
-    } catch (e) {}
+    if (supabase && session) {
+      supabase
+        .from("profiles")
+        .update({ custom_foods: updated, updated_at: new Date().toISOString() })
+        .eq("id", session.user.id)
+        .then(() => {});
+    }
     setNewFoodName("");
     setAddFoodMsg("메뉴를 추가했어요!");
     setTimeout(() => setAddFoodMsg(""), 2000);
@@ -2956,6 +3158,47 @@ export default function TodaysMeApp() {
         }
         .meal-name { font-size: 15px; font-weight: 800; }
 
+        .admin-list {
+          margin-top: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          max-height: 420px;
+          overflow-y: auto;
+        }
+        .admin-row {
+          background: var(--surface2);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 14px;
+          padding: 12px 14px;
+        }
+        .admin-row-main { margin-bottom: 8px; }
+        .admin-row-name {
+          font-size: 14px;
+          font-weight: 800;
+          color: var(--text-hi);
+        }
+        .admin-row-sub {
+          font-size: 12px;
+          color: var(--text-lo);
+          margin-top: 2px;
+        }
+        .admin-reset-btn {
+          background: var(--accent-soft);
+          border: 1px solid rgba(108,92,231,0.25);
+          color: var(--accent);
+          font-size: 12px;
+          font-weight: 700;
+          padding: 7px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .admin-row-msg {
+          margin-top: 6px;
+          font-size: 11.5px;
+          color: var(--text-lo);
+        }
+
         .food-list-panel {
           margin-top: 8px;
           max-height: 240px;
@@ -3200,6 +3443,18 @@ export default function TodaysMeApp() {
           font-size: 13px;
           margin-top: 10px;
         }
+        .auth-error {
+          margin-top: 14px;
+          font-size: 12.5px;
+          color: var(--coral);
+          text-align: center;
+        }
+        .auth-msg {
+          margin-top: 14px;
+          font-size: 12.5px;
+          color: var(--accent);
+          text-align: center;
+        }
         .field { position: relative; margin-top: 20px; }
         .field label {
           font-size: 12px;
@@ -3282,7 +3537,160 @@ export default function TodaysMeApp() {
       `}</style>
 
       <div className="shell">
-        {!profile ? (
+        {!supabase ? (
+          <div className="onboard-wrap">
+            <div className="onboard-card">
+              <div className="onboard-title display-font">Supabase 설정이 필요해요</div>
+              <div className="brush-rule" />
+              <p className="onboard-sub">
+                .env 파일에 VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 설정한 뒤 다시 빌드해주세요.
+                (supabase-schema.sql도 Supabase SQL Editor에서 먼저 실행해야 해요)
+              </p>
+            </div>
+          </div>
+        ) : authLoading ? (
+          <div className="onboard-wrap">
+            <div style={{ color: "var(--text-lo)", fontSize: 13 }}>불러오는 중...</div>
+          </div>
+        ) : recoveryMode ? (
+          <div className="onboard-wrap">
+            <div className="onboard-card">
+              <div className="onboard-title display-font">새 비밀번호 설정</div>
+              <div className="brush-rule" />
+              <p className="onboard-sub">새로 사용할 비밀번호를 입력해주세요.</p>
+
+              <div className="field">
+                <label>새 비밀번호</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="6자 이상"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSetNewPassword();
+                  }}
+                />
+              </div>
+
+              {recoveryMsg && <div className="auth-msg">{recoveryMsg}</div>}
+
+              <button
+                className="primary-btn"
+                disabled={recoverySubmitting}
+                onClick={handleSetNewPassword}
+              >
+                {recoverySubmitting ? "처리 중..." : "비밀번호 변경"}
+              </button>
+            </div>
+          </div>
+        ) : !session ? (
+          <div className="onboard-wrap">
+            <div className="onboard-card">
+              <div className="onboard-title display-font">
+                {authMode === "signup" ? "회원가입" : "로그인"}
+              </div>
+              <div className="brush-rule" />
+              <p className="onboard-sub">
+                로그인하면 어떤 기기에서든 이어서 사용할 수 있어요.
+              </p>
+
+              {authMode === "signup" && (
+                <>
+                  <div className="field">
+                    <label>이름</label>
+                    <input
+                      type="text"
+                      value={authName}
+                      onChange={(e) => setAuthName(e.target.value)}
+                      placeholder="홍길동"
+                    />
+                  </div>
+                  <div className="field">
+                    <label>연락처</label>
+                    <input
+                      type="tel"
+                      value={authPhone}
+                      onChange={(e) => setAuthPhone(e.target.value)}
+                      placeholder="010-0000-0000"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="field">
+                <label>이메일</label>
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </div>
+              <div className="field">
+                <label>비밀번호</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="6자 이상"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAuthSubmit();
+                  }}
+                />
+              </div>
+
+              {authError && <div className="auth-error">{authError}</div>}
+              {authMsg && <div className="auth-msg">{authMsg}</div>}
+
+              <button
+                className="primary-btn"
+                disabled={authSubmitting}
+                onClick={handleAuthSubmit}
+              >
+                {authSubmitting ? "처리 중..." : authMode === "signup" ? "회원가입" : "로그인"}
+              </button>
+
+              <button
+                className="text-link-btn"
+                onClick={() => {
+                  setAuthMode(authMode === "signup" ? "signin" : "signup");
+                  setAuthError("");
+                  setAuthMsg("");
+                }}
+              >
+                {authMode === "signup"
+                  ? "이미 계정이 있어요 · 로그인"
+                  : "계정이 없어요 · 회원가입"}
+              </button>
+
+              {authMode === "signin" && (
+                <button
+                  className="text-link-btn"
+                  onClick={async () => {
+                    setAuthError("");
+                    setAuthMsg("");
+                    if (!authEmail) {
+                      setAuthError("비밀번호를 재설정할 이메일을 먼저 입력해주세요.");
+                      return;
+                    }
+                    const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+                      redirectTo: window.location.origin,
+                    });
+                    setAuthMsg(
+                      error ? error.message : "비밀번호 재설정 메일을 보냈어요."
+                    );
+                  }}
+                >
+                  비밀번호를 잊으셨나요?
+                </button>
+              )}
+            </div>
+          </div>
+        ) : profileLoading ? (
+          <div className="onboard-wrap">
+            <div style={{ color: "var(--text-lo)", fontSize: 13 }}>불러오는 중...</div>
+          </div>
+        ) : !profile ? (
           <div className="onboard-wrap">
             <div className="onboard-card">
               <div className="onboard-title display-font">오늘의 나를 알려주세요</div>
@@ -3377,13 +3785,99 @@ export default function TodaysMeApp() {
                 <span style={{ fontSize: 12, color: "var(--text-lo)" }}>
                   {profile.mbti} · {profile.blood}형
                 </span>
-                <button className="reset-btn" onClick={resetProfile}>
-                  <User2 size={13} /> 정보 다시 입력
-                </button>
+                <span style={{ display: "flex", gap: 10 }}>
+                  {isAdmin && (
+                    <button
+                      className="reset-btn"
+                      onClick={() => {
+                        setShowAdmin(true);
+                        loadAdminCustomers();
+                      }}
+                    >
+                      관리자
+                    </button>
+                  )}
+                  <button className="reset-btn" onClick={resetProfile}>
+                    <User2 size={13} /> 정보 다시 입력
+                  </button>
+                  <button className="reset-btn" onClick={handleSignOut}>
+                    <LogOut size={13} /> 로그아웃
+                  </button>
+                </span>
               </div>
             </header>
 
             <main className="content">
+              {showAdmin ? (
+                <div className="card">
+                  <div className="section-eyebrow">관리자 · 고객 관리</div>
+                  <div className="section-title display-font">고객 목록</div>
+                  <p className="section-sub">
+                    가입한 사용자 목록이에요. 비밀번호를 잊은 고객에게 재설정 메일을 보낼 수 있어요.
+                  </p>
+
+                  <input
+                    type="text"
+                    className="food-search-input"
+                    style={{ marginTop: 14 }}
+                    placeholder="이름 또는 이메일로 검색"
+                    value={adminSearch}
+                    onChange={(e) => setAdminSearch(e.target.value)}
+                  />
+
+                  {adminLoading ? (
+                    <div style={{ marginTop: 16, fontSize: 13, color: "var(--text-lo)" }}>
+                      불러오는 중...
+                    </div>
+                  ) : (
+                    <div className="admin-list">
+                      {adminCustomers
+                        .filter((c) => {
+                          const q = adminSearch.trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            (c.name || "").toLowerCase().includes(q) ||
+                            (c.email || "").toLowerCase().includes(q)
+                          );
+                        })
+                        .map((c) => (
+                          <div className="admin-row" key={c.id}>
+                            <div className="admin-row-main">
+                              <div className="admin-row-name">
+                                {c.name || "(이름 없음)"} {c.is_admin && "· 관리자"}
+                              </div>
+                              <div className="admin-row-sub">
+                                {c.email} {c.phone ? `· ${c.phone}` : ""}
+                              </div>
+                              <div className="admin-row-sub">
+                                {c.mbti ? `${c.mbti} · ${c.blood}형` : "온보딩 미완료"}
+                              </div>
+                            </div>
+                            <button
+                              className="admin-reset-btn"
+                              onClick={() => sendCustomerPasswordReset(c.email)}
+                            >
+                              비밀번호 재설정 메일
+                            </button>
+                            {adminMsg[c.email] && (
+                              <div className="admin-row-msg">{adminMsg[c.email]}</div>
+                            )}
+                          </div>
+                        ))}
+                      {adminCustomers.length === 0 && (
+                        <div style={{ fontSize: 13, color: "var(--text-lo)" }}>
+                          고객이 없어요.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button className="text-link-btn" onClick={() => setShowAdmin(false)}>
+                    ← 앱으로 돌아가기
+                  </button>
+                </div>
+              ) : (
+                <>
               {tab === "lotto" && (
                 <div className="card">
                   <div className="section-eyebrow">오늘의 뽑기 · 로또</div>
@@ -3691,33 +4185,35 @@ export default function TodaysMeApp() {
                   )}
                 </div>
               )}
+                </>
+              )}
             </main>
 
             <nav className="tabbar">
               <button
                 className={`tab-btn ${tab === "lotto" ? "active" : ""}`}
-                onClick={() => setTab("lotto")}
+                onClick={() => { setTab("lotto"); setShowAdmin(false); }}
               >
                 <Ticket size={20} />
                 로또생성기
               </button>
               <button
                 className={`tab-btn ${tab === "food" ? "active" : ""}`}
-                onClick={() => setTab("food")}
+                onClick={() => { setTab("food"); setShowAdmin(false); }}
               >
                 <UtensilsCrossed size={20} />
                 오늘 뭐 먹지
               </button>
               <button
                 className={`tab-btn ${tab === "fortune" ? "active" : ""}`}
-                onClick={() => setTab("fortune")}
+                onClick={() => { setTab("fortune"); setShowAdmin(false); }}
               >
                 <Sparkles size={20} />
                 오늘의 운세
               </button>
               <button
                 className={`tab-btn ${tab === "ara" ? "active" : ""}`}
-                onClick={() => setTab("ara")}
+                onClick={() => { setTab("ara"); setShowAdmin(false); }}
               >
                 <HelpCircle size={20} />
                 결정의 순간
