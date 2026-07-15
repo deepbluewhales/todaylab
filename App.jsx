@@ -37,28 +37,6 @@ function makeRng(profileString, salt) {
   return mulberry32(seed);
 }
 
-/* ───────────────────────── 전화번호 자동 하이픈 ───────────────────────── */
-
-function formatPhoneNumber(value) {
-  const numbers = value.replace(/[^0-9]/g, "").slice(0, 11);
-  if (numbers.length < 4) return numbers;
-  if (numbers.startsWith("02")) {
-    // 서울 지역번호(02)는 2-3/4-4 자리
-    if (numbers.length < 6) return numbers.replace(/(\d{2})(\d+)/, "$1-$2");
-    if (numbers.length < 10)
-      return numbers.replace(/(\d{2})(\d{3,4})(\d{0,4})/, (m, a, b, c) =>
-        c ? `${a}-${b}-${c}` : `${a}-${b}`
-      );
-    return numbers.replace(/(\d{2})(\d{4})(\d{4})/, "$1-$2-$3");
-  }
-  if (numbers.length < 7) return numbers.replace(/(\d{3})(\d+)/, "$1-$2");
-  if (numbers.length < 11)
-    return numbers.replace(/(\d{3})(\d{3})(\d{0,4})/, (m, a, b, c) =>
-      c ? `${a}-${b}-${c}` : `${a}-${b}`
-    );
-  return numbers.replace(/(\d{3})(\d{4})(\d{4})/, "$1-$2-$3");
-}
-
 function pick(rng, arr) {
   return arr[Math.floor(rng() * arr.length)];
 }
@@ -2396,6 +2374,9 @@ export default function TodaysMeApp() {
   const [newPassword, setNewPassword] = useState("");
   const [recoveryMsg, setRecoveryMsg] = useState("");
   const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [tempPasswordShown, setTempPasswordShown] = useState({});
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [form, setForm] = useState({
     birth: "",
     sijin: "모름",
@@ -2458,21 +2439,17 @@ export default function TodaysMeApp() {
     const newProfile = { ...form };
     setProfile(newProfile);
     if (!supabase) return;
-    try {
-      const { error } = await supabase.from("profiles").upsert({
-        id: session.user.id,
-        birth: newProfile.birth,
-        sijin: newProfile.sijin,
-        gender: newProfile.gender,
-        mbti: newProfile.mbti,
-        blood: newProfile.blood,
-        custom_foods: customFoods,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) console.error("profiles 저장 실패:", error);
-    } catch (e) {
-      console.error("profiles 저장 중 오류:", e);
-    }
+    const { error } = await supabase.from("profiles").upsert({
+      id: session.user.id,
+      birth: newProfile.birth,
+      sijin: newProfile.sijin,
+      gender: newProfile.gender,
+      mbti: newProfile.mbti,
+      blood: newProfile.blood,
+      custom_foods: customFoods,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) console.error("프로필 저장 실패:", error.message);
   }
 
   async function handleSignOut() {
@@ -2490,6 +2467,13 @@ export default function TodaysMeApp() {
     setShowAdmin(false);
   }
 
+  function formatPhoneNumber(value) {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    if (digits.length < 4) return digits;
+    if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+  }
+
   async function handleAuthSubmit() {
     if (!supabase) return;
     setAuthError("");
@@ -2505,42 +2489,22 @@ export default function TodaysMeApp() {
     setAuthSubmitting(true);
     try {
       if (authMode === "signup") {
-        // 이메일 인증이 켜져 있으면 가입 직후엔 세션이 없어서 바로 profiles에 저장할 수 없어요.
-        // 나중에(이메일 인증 완료 후) 처음 로그인했을 때 이 값으로 프로필을 채워주기 위해 임시 저장해둡니다.
-        try {
-          localStorage.setItem(
-            `pending_profile_${authEmail}`,
-            JSON.stringify({ name: authName, phone: authPhone })
-          );
-        } catch (e) {}
-
         const { data, error } = await supabase.auth.signUp({
           email: authEmail,
           password: authPassword,
+          options: {
+            data: { name: authName, phone: authPhone },
+          },
         });
         if (error) {
           setAuthError(error.message);
-        } else if (data.session) {
-          // 이메일 인증이 꺼져있으면 가입 즉시 로그인 세션이 생겨요 → 바로 프로필 기본정보 저장
-          const { error: profileError } = await supabase.from("profiles").upsert({
-            id: data.user.id,
-            name: authName,
-            phone: authPhone,
-            email: authEmail,
-            updated_at: new Date().toISOString(),
-          });
-          if (profileError) {
-            console.error("profiles upsert 실패:", profileError);
-            setAuthError(
-              `가입은 됐지만 프로필 저장에 실패했어요: ${profileError.message}`
-            );
-          }
-        } else {
+        } else if (!data.session) {
           setAuthMsg(
-            "가입 확인 메일을 보냈어요. 메일함에서 인증을 완료한 뒤 로그인하면 이름/연락처가 자동으로 저장돼요."
+            "가입 확인 메일을 보냈어요. Supabase 설정에서 이메일 인증을 껐다면 이 메시지는 뜨지 않아야 해요 — 대시보드 설정을 확인해주세요."
           );
           setAuthMode("signin");
         }
+        // 세션이 바로 생기면(이메일 인증 꺼짐) 프로필 생성은 아래 useEffect에서 처리해요
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: authEmail,
@@ -2564,9 +2528,16 @@ export default function TodaysMeApp() {
       if (error) {
         setRecoveryMsg(error.message);
       } else {
+        if (session) {
+          await supabase
+            .from("profiles")
+            .update({ must_change_password: false })
+            .eq("id", session.user.id);
+        }
         setRecoveryMsg("비밀번호가 변경됐어요.");
         setTimeout(() => {
           setRecoveryMode(false);
+          setMustChangePassword(false);
           setNewPassword("");
           setRecoveryMsg("");
         }, 1200);
@@ -2589,16 +2560,47 @@ export default function TodaysMeApp() {
     setAdminLoading(false);
   }
 
-  async function sendCustomerPasswordReset(email) {
-    if (!supabase || !email) return;
-    setAdminMsg((m) => ({ ...m, [email]: "전송 중..." }));
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+  async function callAdminFunction(action, targetUserId) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const res = await fetch(`${supabaseUrl}/functions/v1/admin-actions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ action, targetUserId }),
     });
-    setAdminMsg((m) => ({
-      ...m,
-      [email]: error ? `실패: ${error.message}` : "재설정 메일 전송됨",
-    }));
+    return res.json();
+  }
+
+  async function issueTempPassword(row) {
+    setAdminMsg((m) => ({ ...m, [row.id]: "발급 중..." }));
+    try {
+      const result = await callAdminFunction("reset-password", row.id);
+      if (result.error) {
+        setAdminMsg((m) => ({ ...m, [row.id]: `실패: ${result.error}` }));
+      } else {
+        setTempPasswordShown((m) => ({ ...m, [row.id]: result.tempPassword }));
+        setAdminMsg((m) => ({ ...m, [row.id]: "임시 비밀번호가 발급됐어요." }));
+      }
+    } catch (e) {
+      setAdminMsg((m) => ({ ...m, [row.id]: "요청에 실패했어요. Edge Function 배포 여부를 확인해주세요." }));
+    }
+  }
+
+  async function deleteCustomer(row) {
+    setAdminMsg((m) => ({ ...m, [row.id]: "삭제 중..." }));
+    try {
+      const result = await callAdminFunction("delete-user", row.id);
+      if (result.error) {
+        setAdminMsg((m) => ({ ...m, [row.id]: `실패: ${result.error}` }));
+      } else {
+        setAdminCustomers((prev) => prev.filter((c) => c.id !== row.id));
+      }
+    } catch (e) {
+      setAdminMsg((m) => ({ ...m, [row.id]: "요청에 실패했어요. Edge Function 배포 여부를 확인해주세요." }));
+    }
+    setConfirmDeleteId(null);
   }
 
   function weatherCodeToEmoji(code) {
@@ -2673,45 +2675,38 @@ export default function TodaysMeApp() {
       .maybeSingle()
       .then(async ({ data, error }) => {
         if (error) {
-          console.error("profiles 조회 실패:", error);
+          console.error("프로필 조회 실패:", error.message);
+          setProfileLoading(false);
+          return;
         }
-        if (data) {
-          setIsAdmin(!!data.is_admin);
-          // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
-          if (data.birth) {
-            setProfile({
-              birth: data.birth,
-              sijin: data.sijin,
-              gender: data.gender,
-              mbti: data.mbti,
-              blood: data.blood,
-            });
-          }
-          setCustomFoods(data.custom_foods || []);
-        } else {
-          // profiles에 아직 행이 없는 경우 (이메일 인증 때문에 가입 시점에 저장 못한 케이스)
-          // → 가입할 때 임시로 남겨둔 이름/연락처가 있으면 그걸로, 없으면 최소 정보로 생성
-          const email = session.user.email || "";
-          let pending = null;
-          try {
-            const raw = localStorage.getItem(`pending_profile_${email}`);
-            if (raw) pending = JSON.parse(raw);
-          } catch (e) {}
-          const { error: insertError } = await supabase.from("profiles").upsert({
+        if (!data) {
+          // 프로필 행이 아직 없으면 (가입 직후 or 이메일 인증 후 첫 로그인) 지금 생성
+          const meta = session.user.user_metadata || {};
+          const { error: insertError } = await supabase.from("profiles").insert({
             id: session.user.id,
-            email,
-            name: pending?.name || null,
-            phone: pending?.phone || null,
-            updated_at: new Date().toISOString(),
+            name: meta.name || "",
+            phone: meta.phone || "",
+            email: session.user.email,
           });
           if (insertError) {
-            console.error("profiles 자동 생성 실패:", insertError);
-          } else {
-            try {
-              localStorage.removeItem(`pending_profile_${email}`);
-            } catch (e) {}
+            console.error("프로필 생성 실패:", insertError.message);
           }
+          setProfileLoading(false);
+          return;
         }
+        setIsAdmin(!!data.is_admin);
+        setMustChangePassword(!!data.must_change_password);
+        // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
+        if (data.birth) {
+          setProfile({
+            birth: data.birth,
+            sijin: data.sijin,
+            gender: data.gender,
+            mbti: data.mbti,
+            blood: data.blood,
+          });
+        }
+        setCustomFoods(data.custom_foods || []);
         setProfileLoading(false);
       });
   }, [session]);
@@ -3263,6 +3258,49 @@ export default function TodaysMeApp() {
           border-radius: 10px;
           cursor: pointer;
         }
+        .admin-row-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .admin-delete-btn {
+          background: transparent;
+          border: 1px solid rgba(255,107,107,0.35);
+          color: var(--coral);
+          font-size: 12px;
+          font-weight: 700;
+          padding: 7px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .admin-delete-btn.confirm {
+          background: var(--coral);
+          color: #4A120A;
+          border-color: transparent;
+        }
+        .admin-cancel-btn {
+          background: transparent;
+          border: 1px solid var(--line);
+          color: var(--text-lo);
+          font-size: 12px;
+          font-weight: 700;
+          padding: 7px 12px;
+          border-radius: 10px;
+          cursor: pointer;
+        }
+        .admin-temp-pw {
+          margin-top: 8px;
+          font-size: 12.5px;
+          color: var(--text-hi);
+          background: var(--accent-soft);
+          border: 1px solid rgba(108,92,231,0.2);
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .admin-temp-pw-note {
+          color: var(--text-lo);
+          font-size: 11px;
+        }
         .admin-row-msg {
           margin-top: 6px;
           font-size: 11.5px;
@@ -3680,10 +3718,9 @@ export default function TodaysMeApp() {
                     <input
                       type="tel"
                       value={authPhone}
-                      onChange={(e) =>
-                        setAuthPhone(formatPhoneNumber(e.target.value))
-                      }
+                      onChange={(e) => setAuthPhone(formatPhoneNumber(e.target.value))}
                       placeholder="010-0000-0000"
+                      maxLength={13}
                     />
                   </div>
                 </>
@@ -3761,6 +3798,39 @@ export default function TodaysMeApp() {
         ) : profileLoading ? (
           <div className="onboard-wrap">
             <div style={{ color: "var(--text-lo)", fontSize: 13 }}>불러오는 중...</div>
+          </div>
+        ) : mustChangePassword ? (
+          <div className="onboard-wrap">
+            <div className="onboard-card">
+              <div className="onboard-title display-font">비밀번호 변경이 필요해요</div>
+              <div className="brush-rule" />
+              <p className="onboard-sub">
+                관리자가 임시 비밀번호를 발급했어요. 계속 사용하려면 새 비밀번호로 바꿔주세요.
+              </p>
+
+              <div className="field">
+                <label>새 비밀번호</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="6자 이상"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSetNewPassword();
+                  }}
+                />
+              </div>
+
+              {recoveryMsg && <div className="auth-msg">{recoveryMsg}</div>}
+
+              <button
+                className="primary-btn"
+                disabled={recoverySubmitting}
+                onClick={handleSetNewPassword}
+              >
+                {recoverySubmitting ? "처리 중..." : "비밀번호 변경"}
+              </button>
+            </div>
           </div>
         ) : !profile ? (
           <div className="onboard-wrap">
@@ -3882,10 +3952,10 @@ export default function TodaysMeApp() {
             <main className="content">
               {showAdmin ? (
                 <div className="card">
-                  <div className="section-eyebrow">관리자 · 고객 관리</div>
-                  <div className="section-title display-font">고객 목록</div>
+                  <div className="section-eyebrow">관리자 · 사용자 관리</div>
+                  <div className="section-title display-font">사용자 목록</div>
                   <p className="section-sub">
-                    가입한 사용자 목록이에요. 비밀번호를 잊은 고객에게 재설정 메일을 보낼 수 있어요.
+                    가입한 사용자 목록이에요. 임시 비밀번호를 발급하거나 계정을 삭제할 수 있어요.
                   </p>
 
                   <input
@@ -3925,20 +3995,58 @@ export default function TodaysMeApp() {
                                 {c.mbti ? `${c.mbti} · ${c.blood}형` : "온보딩 미완료"}
                               </div>
                             </div>
-                            <button
-                              className="admin-reset-btn"
-                              onClick={() => sendCustomerPasswordReset(c.email)}
-                            >
-                              비밀번호 재설정 메일
-                            </button>
-                            {adminMsg[c.email] && (
-                              <div className="admin-row-msg">{adminMsg[c.email]}</div>
+
+                            <div className="admin-row-actions">
+                              <button
+                                className="admin-reset-btn"
+                                onClick={() => issueTempPassword(c)}
+                              >
+                                임시 비밀번호 발급
+                              </button>
+                              {!c.is_admin && (
+                                confirmDeleteId === c.id ? (
+                                  <>
+                                    <button
+                                      className="admin-delete-btn confirm"
+                                      onClick={() => deleteCustomer(c)}
+                                    >
+                                      정말 삭제
+                                    </button>
+                                    <button
+                                      className="admin-cancel-btn"
+                                      onClick={() => setConfirmDeleteId(null)}
+                                    >
+                                      취소
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className="admin-delete-btn"
+                                    onClick={() => setConfirmDeleteId(c.id)}
+                                  >
+                                    사용자 삭제
+                                  </button>
+                                )
+                              )}
+                            </div>
+
+                            {tempPasswordShown[c.id] && (
+                              <div className="admin-temp-pw">
+                                임시 비밀번호: <strong>{tempPasswordShown[c.id]}</strong>
+                                <span className="admin-temp-pw-note">
+                                  {" "}
+                                  (다시 확인할 수 없어요 - 지금 전달해주세요)
+                                </span>
+                              </div>
+                            )}
+                            {adminMsg[c.id] && (
+                              <div className="admin-row-msg">{adminMsg[c.id]}</div>
                             )}
                           </div>
                         ))}
                       {adminCustomers.length === 0 && (
                         <div style={{ fontSize: 13, color: "var(--text-lo)" }}>
-                          고객이 없어요.
+                          사용자가 없어요.
                         </div>
                       )}
                     </div>
