@@ -2581,7 +2581,7 @@ export default function TodaysMeApp() {
         setAdminMsg((m) => ({ ...m, [row.id]: `실패: ${result.error}` }));
       } else {
         setTempPasswordShown((m) => ({ ...m, [row.id]: result.tempPassword }));
-        setAdminMsg((m) => ({ ...m, [row.id]: "임시 비밀번호가 발급됐어요." }));
+        setAdminMsg((m) => ({ ...m, [row.id]: "비밀번호가 123456으로 초기화됐어요." }));
       }
     } catch (e) {
       setAdminMsg((m) => ({ ...m, [row.id]: "요청에 실패했어요. Edge Function 배포 여부를 확인해주세요." }));
@@ -3805,7 +3805,7 @@ export default function TodaysMeApp() {
               <div className="onboard-title display-font">비밀번호 변경이 필요해요</div>
               <div className="brush-rule" />
               <p className="onboard-sub">
-                관리자가 임시 비밀번호를 발급했어요. 계속 사용하려면 새 비밀번호로 바꿔주세요.
+                관리자가 비밀번호를 초기화했어요. 계속 사용하려면 새 비밀번호로 바꿔주세요.
               </p>
 
               <div className="field">
@@ -3955,7 +3955,7 @@ export default function TodaysMeApp() {
                   <div className="section-eyebrow">관리자 · 사용자 관리</div>
                   <div className="section-title display-font">사용자 목록</div>
                   <p className="section-sub">
-                    가입한 사용자 목록이에요. 임시 비밀번호를 발급하거나 계정을 삭제할 수 있어요.
+                    가입한 사용자 목록이에요. 비밀번호를 123456으로 초기화하거나 계정을 삭제할 수 있어요.
                   </p>
 
                   <input
@@ -4001,7 +4001,7 @@ export default function TodaysMeApp() {
                                 className="admin-reset-btn"
                                 onClick={() => issueTempPassword(c)}
                               >
-                                임시 비밀번호 발급
+                                비밀번호 초기화 (123456)
                               </button>
                               {!c.is_admin && (
                                 confirmDeleteId === c.id ? (
@@ -4032,10 +4032,10 @@ export default function TodaysMeApp() {
 
                             {tempPasswordShown[c.id] && (
                               <div className="admin-temp-pw">
-                                임시 비밀번호: <strong>{tempPasswordShown[c.id]}</strong>
+                                비밀번호가 <strong>123456</strong>으로 초기화됐어요
                                 <span className="admin-temp-pw-note">
                                   {" "}
-                                  (다시 확인할 수 없어요 - 지금 전달해주세요)
+                                  (사용자에게 안내해주세요)
                                 </span>
                               </div>
                             )}

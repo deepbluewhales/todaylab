@@ -22,14 +22,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function generateTempPassword() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  let pw = "";
-  for (let i = 0; i < 10; i++) {
-    pw += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return pw;
-}
+const RESET_PASSWORD = "123456"; // 관리자가 초기화하면 항상 이 값으로 설정됩니다
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -73,9 +66,8 @@ serve(async (req) => {
     }
 
     if (action === "reset-password") {
-      const tempPassword = generateTempPassword();
       const { error } = await adminClient.auth.admin.updateUserById(targetUserId, {
-        password: tempPassword,
+        password: RESET_PASSWORD,
       });
       if (error) return json({ error: error.message }, 400);
 
@@ -84,7 +76,7 @@ serve(async (req) => {
         .update({ must_change_password: true })
         .eq("id", targetUserId);
 
-      return json({ tempPassword });
+      return json({ tempPassword: RESET_PASSWORD });
     }
 
     if (action === "delete-user") {
