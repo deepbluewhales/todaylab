@@ -2436,18 +2436,17 @@ export default function TodaysMeApp() {
     const newProfile = { ...form };
     setProfile(newProfile);
     if (!supabase) return;
-    try {
-      await supabase.from("profiles").upsert({
-        id: session.user.id,
-        birth: newProfile.birth,
-        sijin: newProfile.sijin,
-        gender: newProfile.gender,
-        mbti: newProfile.mbti,
-        blood: newProfile.blood,
-        custom_foods: customFoods,
-        updated_at: new Date().toISOString(),
-      });
-    } catch (e) {}
+    const { error } = await supabase.from("profiles").upsert({
+      id: session.user.id,
+      birth: newProfile.birth,
+      sijin: newProfile.sijin,
+      gender: newProfile.gender,
+      mbti: newProfile.mbti,
+      blood: newProfile.blood,
+      custom_foods: customFoods,
+      updated_at: new Date().toISOString(),
+    });
+    if (error) console.error("프로필 저장 실패:", error.message);
   }
 
   async function handleSignOut() {
@@ -2463,6 +2462,13 @@ export default function TodaysMeApp() {
     setAraCategory(null);
     setIsAdmin(false);
     setShowAdmin(false);
+  }
+
+  function formatPhoneNumber(value) {
+    const digits = value.replace(/\D/g, "").slice(0, 11);
+    if (digits.length < 4) return digits;
+    if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
   }
 
   async function handleAuthSubmit() {
@@ -2483,24 +2489,19 @@ export default function TodaysMeApp() {
         const { data, error } = await supabase.auth.signUp({
           email: authEmail,
           password: authPassword,
+          options: {
+            data: { name: authName, phone: authPhone },
+          },
         });
         if (error) {
           setAuthError(error.message);
-        } else if (data.session) {
-          // 이메일 인증이 꺼져있으면 가입 즉시 로그인 세션이 생겨요 → 바로 프로필 기본정보 저장
-          await supabase.from("profiles").upsert({
-            id: data.user.id,
-            name: authName,
-            phone: authPhone,
-            email: authEmail,
-            updated_at: new Date().toISOString(),
-          });
-        } else {
+        } else if (!data.session) {
           setAuthMsg(
             "가입 확인 메일을 보냈어요. Supabase 설정에서 이메일 인증을 껐다면 이 메시지는 뜨지 않아야 해요 — 대시보드 설정을 확인해주세요."
           );
           setAuthMode("signin");
         }
+        // 세션이 바로 생기면(이메일 인증 꺼짐) 프로필 생성은 아래 useEffect에서 처리해요
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email: authEmail,
@@ -2631,21 +2632,39 @@ export default function TodaysMeApp() {
       .select("*")
       .eq("id", session.user.id)
       .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setIsAdmin(!!data.is_admin);
-          // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
-          if (data.birth) {
-            setProfile({
-              birth: data.birth,
-              sijin: data.sijin,
-              gender: data.gender,
-              mbti: data.mbti,
-              blood: data.blood,
-            });
-          }
-          setCustomFoods(data.custom_foods || []);
+      .then(async ({ data, error }) => {
+        if (error) {
+          console.error("프로필 조회 실패:", error.message);
+          setProfileLoading(false);
+          return;
         }
+        if (!data) {
+          // 프로필 행이 아직 없으면 (가입 직후 or 이메일 인증 후 첫 로그인) 지금 생성
+          const meta = session.user.user_metadata || {};
+          const { error: insertError } = await supabase.from("profiles").insert({
+            id: session.user.id,
+            name: meta.name || "",
+            phone: meta.phone || "",
+            email: session.user.email,
+          });
+          if (insertError) {
+            console.error("프로필 생성 실패:", insertError.message);
+          }
+          setProfileLoading(false);
+          return;
+        }
+        setIsAdmin(!!data.is_admin);
+        // birth가 없으면 아직 "오늘의 나" 온보딩을 안 마친 상태
+        if (data.birth) {
+          setProfile({
+            birth: data.birth,
+            sijin: data.sijin,
+            gender: data.gender,
+            mbti: data.mbti,
+            blood: data.blood,
+          });
+        }
+        setCustomFoods(data.custom_foods || []);
         setProfileLoading(false);
       });
   }, [session]);
@@ -3614,8 +3633,9 @@ export default function TodaysMeApp() {
                     <input
                       type="tel"
                       value={authPhone}
-                      onChange={(e) => setAuthPhone(e.target.value)}
+                      onChange={(e) => setAuthPhone(formatPhoneNumber(e.target.value))}
                       placeholder="010-0000-0000"
+                      maxLength={13}
                     />
                   </div>
                 </>
