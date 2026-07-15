@@ -2562,11 +2562,13 @@ export default function TodaysMeApp() {
 
   async function callAdminFunction(action, targetUserId) {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     const res = await fetch(`${supabaseUrl}/functions/v1/admin-actions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
+        apikey: anonKey,
       },
       body: JSON.stringify({ action, targetUserId }),
     });
