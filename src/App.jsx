@@ -2379,6 +2379,7 @@ export default function TodaysMeApp() {
   const [lottoResult, setLottoResult] = useState(null);
   const [lottoRevealing, setLottoRevealing] = useState(false);
   const [revealCount, setRevealCount] = useState(0);
+  const [weeklyLotto, setWeeklyLotto] = useState([]);
 
   const [foodResults, setFoodResults] = useState([]);
   const [foodSpinning, setFoodSpinning] = useState(false);
@@ -2458,6 +2459,38 @@ export default function TodaysMeApp() {
     } catch (e) {}
   }, [lottoResult, foodResults, fortuneResult, profileString, todayStr]);
 
+  // 이번 주(월~금) 로또 번호 모음 계산
+  useEffect(() => {
+    if (!profileString) return;
+    const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+    const now = new Date();
+    const day = now.getDay(); // 0=일 ... 6=토
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+
+    const week = [];
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = d.toLocaleDateString("en-CA");
+      let numbers = null;
+      if (dateStr === todayStr) {
+        numbers = lottoResult;
+      } else {
+        try {
+          const raw = localStorage.getItem(`todaysme_daily_${dateStr}`);
+          if (raw) {
+            const data = JSON.parse(raw);
+            if (data.lottoResult) numbers = data.lottoResult;
+          }
+        } catch (e) {}
+      }
+      week.push({ dateStr, label: WEEKDAY_LABELS[d.getDay()], numbers });
+    }
+    setWeeklyLotto(week);
+  }, [profileString, todayStr, lottoResult]);
+
   function drawLottoNow() {
     if (lottoRevealing || lottoResult) return;
     const rng = makeRng(profileString, "lotto");
@@ -2472,8 +2505,6 @@ export default function TodaysMeApp() {
       setLottoRevealing(false);
     }, 300 + nums.length * 260 + 150);
   }
-
-  const MEAL_LABELS = ["아침", "점심", "저녁"];
 
   const effectiveFoodList = useMemo(
     () => [...FOOD_LIST, ...customFoods],
@@ -2516,8 +2547,8 @@ export default function TodaysMeApp() {
 
   function drawFoodNow() {
     if (foodSpinning || foodResults.length >= 3 || foodTriplet.length < 3) return;
-    const mealIndex = foodResults.length;
-    const final = foodTriplet[mealIndex];
+    const pickIndex = foodResults.length;
+    const final = foodTriplet[pickIndex];
     setFoodSpinning(true);
     let ticks = 0;
     const totalTicks = 14;
@@ -2528,7 +2559,7 @@ export default function TodaysMeApp() {
       if (ticks >= totalTicks) {
         clearInterval(interval);
         setFoodSpinLabel(`${final.emoji} ${final.name}`);
-        setFoodResults((prev) => [...prev, { ...final, meal: MEAL_LABELS[mealIndex] }]);
+        setFoodResults((prev) => [...prev, final]);
         setFoodSpinning(false);
       }
     }, 90);
@@ -2736,10 +2767,10 @@ export default function TodaysMeApp() {
         .primary-btn.sky { background: linear-gradient(135deg, var(--sky-2), var(--sky)); color: #0B2C57; box-shadow: 0 10px 24px rgba(62,142,255,0.35);}
 
         .balls-row {
-          display: flex;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
           gap: 10px;
-          justify-content: center;
-          flex-wrap: wrap;
+          justify-items: center;
           margin: 26px 0 6px;
           min-height: 62px;
           position: relative;
@@ -2766,6 +2797,68 @@ export default function TodaysMeApp() {
           color: var(--text-lo);
           margin-top: 14px;
           position: relative;
+        }
+
+        .week-lotto {
+          position: relative;
+          margin-top: 22px;
+          padding-top: 18px;
+          border-top: 1px solid var(--line);
+        }
+        .week-lotto-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: var(--accent);
+          letter-spacing: 0.04em;
+        }
+        .week-lotto-list {
+          margin-top: 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .week-lotto-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: var(--surface2);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-radius: 12px;
+          padding: 8px 12px;
+          min-height: 40px;
+        }
+        .week-lotto-day {
+          font-size: 12px;
+          font-weight: 800;
+          color: var(--text-hi);
+          width: 22px;
+          flex-shrink: 0;
+        }
+        .week-lotto-balls {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+        .mini-ball {
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 800;
+          box-shadow: 0 2px 6px rgba(31,41,68,0.15);
+        }
+        .week-lotto-empty {
+          font-size: 12px;
+          color: var(--text-lo);
+        }
+        .week-lotto-note {
+          margin-top: 10px;
+          font-size: 11.5px;
+          color: var(--text-lo);
+          line-height: 1.5;
         }
 
         .food-stage {
@@ -3229,7 +3322,7 @@ export default function TodaysMeApp() {
           <>
             <header className="top">
               <div className="top-row">
-                <div className="brand display-font">오늘의 나</div>
+                <div className="brand display-font">TodayLab</div>
                 <div className="date-chip">{todayLabel}</div>
               </div>
               <div className="top-row" style={{ marginTop: 10 }}>
@@ -3293,6 +3386,38 @@ export default function TodaysMeApp() {
                   {lottoResult && (
                     <div className="locked-tag">🔒 내일 자정 이후 새 번호로 갱신돼요</div>
                   )}
+
+                  <div className="week-lotto">
+                    <div className="week-lotto-title">이번 주 번호함 (월~금)</div>
+                    <div className="week-lotto-list">
+                      {weeklyLotto.map((d) => (
+                        <div className="week-lotto-row" key={d.dateStr}>
+                          <div className="week-lotto-day">{d.label}</div>
+                          {d.numbers ? (
+                            <div className="week-lotto-balls">
+                              {d.numbers.map((n) => {
+                                const c = ballColor(n);
+                                return (
+                                  <div
+                                    key={n}
+                                    className="mini-ball"
+                                    style={{ background: c.bg, color: c.fg }}
+                                  >
+                                    {n}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="week-lotto-empty">번호를 뽑지 않았습니다</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="week-lotto-note">
+                      월~금 매일 뽑으면 이번 주 조합 5개가 모여요. 토요일에 그대로 구매해보세요.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -3301,7 +3426,7 @@ export default function TodaysMeApp() {
                   <div className="section-eyebrow">오늘의 뽑기 · 메뉴</div>
                   <div className="section-title display-font">오늘 뭐 먹지?</div>
                   <p className="section-sub">
-                    고민될 땐 오늘의 나에게 물어보세요. 하루 세 번, 확정된 메뉴를 알려드려요.
+                    고민될 땐 오늘의 나에게 물어보세요. 하루 세 번까지 뽑을 수 있어요.
                   </p>
 
                   <div className="food-stage">
@@ -3309,11 +3434,11 @@ export default function TodaysMeApp() {
                       <div className="food-name">{foodSpinLabel}</div>
                     ) : foodResults.length >= 3 ? (
                       <div style={{ color: "var(--text-lo)", fontSize: 13 }}>
-                        오늘의 삼시세끼를 모두 확인했어요
+                        오늘 뽑을 수 있는 메뉴를 모두 확인했어요
                       </div>
                     ) : (
                       <div style={{ color: "var(--text-lo)", fontSize: 13 }}>
-                        버튼을 눌러 {MEAL_LABELS[foodResults.length]} 메뉴를 확인해보세요
+                        버튼을 눌러 메뉴를 확인해보세요
                       </div>
                     )}
                   </div>
@@ -3329,23 +3454,25 @@ export default function TodaysMeApp() {
                         ? "고르는 중..."
                         : foodResults.length >= 3
                         ? "오늘 메뉴 완료"
-                        : `${MEAL_LABELS[foodResults.length]} 메뉴 뽑기`}
+                        : "메뉴 뽑기"}
                     </span>
                   </button>
 
                   {foodResults.length > 0 && (
-                    <div className="meal-list">
-                      {foodResults.map((r, i) => (
-                        <div className="meal-item" key={i}>
-                          <div className="meal-tag">{r.meal}</div>
-                          <div className="meal-name">{r.emoji} {r.name}</div>
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      <div className="meal-list">
+                        {foodResults.map((r, i) => (
+                          <div className="meal-item" key={i}>
+                            <div className="meal-name">{r.emoji} {r.name}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="ara-count">오늘 {foodResults.length}/3번 뽑았어요</div>
+                    </>
                   )}
 
                   {foodResults.length >= 3 && (
-                    <div className="locked-tag">🔒 내일 다시 새로운 삼시세끼가 열려요</div>
+                    <div className="locked-tag">🔒 내일 다시 세 번 뽑을 수 있어요</div>
                   )}
 
                   <button
