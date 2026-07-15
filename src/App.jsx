@@ -2848,6 +2848,10 @@ export default function TodaysMeApp() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
 
+        .app-root, .app-root *, .app-root *::before, .app-root *::after {
+          box-sizing: border-box;
+        }
+
         .app-root {
           --bg: #F3F5FC;
           --surface: rgba(255,255,255,0.62);
