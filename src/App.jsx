@@ -2395,6 +2395,7 @@ export default function TodaysMeApp() {
   const [araResult, setAraResult] = useState(null);
   const [araCount, setAraCount] = useState(0);
   const [araCategory, setAraCategory] = useState(null);
+  const [weatherEmoji, setWeatherEmoji] = useState(null);
 
   function startProfile() {
     if (!form.birth) return;
@@ -2420,6 +2421,43 @@ export default function TodaysMeApp() {
       localStorage.removeItem("todaysme_profile");
     } catch (e) {}
   }
+
+  function weatherCodeToEmoji(code) {
+    if (code === 0) return "☀️";
+    if (code === 1) return "🌤️";
+    if (code === 2) return "⛅";
+    if (code === 3) return "☁️";
+    if (code === 45 || code === 48) return "🌫️";
+    if ([51, 53, 55, 56, 57].includes(code)) return "🌦️";
+    if ([61, 63, 65, 66, 67].includes(code)) return "🌧️";
+    if ([71, 73, 75, 77].includes(code)) return "❄️";
+    if ([80, 81, 82].includes(code)) return "🌦️";
+    if (code === 85 || code === 86) return "🌨️";
+    if ([95, 96, 99].includes(code)) return "⛈️";
+    return null;
+  }
+
+  // 오늘 날씨 아이콘 가져오기 (독립 배포판에서만 동작 - Claude 아티팩트 미리보기는 위치 권한이 막혀있어 표시되지 않을 수 있음)
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=weather_code`
+        )
+          .then((res) => res.json())
+          .then((data) => {
+            const code = data && data.current && data.current.weather_code;
+            const emoji = weatherCodeToEmoji(code);
+            if (emoji) setWeatherEmoji(emoji);
+          })
+          .catch(() => {});
+      },
+      () => {},
+      { timeout: 5000 }
+    );
+  }, []);
 
   // 저장된 프로필 불러오기 (독립 배포판에서만 동작 - Claude 아티팩트 미리보기에서는 무시됨)
   useEffect(() => {
@@ -2662,6 +2700,10 @@ export default function TodaysMeApp() {
         }
         .top-row { display:flex; align-items:center; justify-content:space-between; }
         .brand { font-size: 22px; letter-spacing: -0.01em; }
+        .weather-emoji {
+          font-size: 24px;
+          line-height: 1;
+        }
         .date-chip {
           font-size: 12px;
           color: var(--text-lo);
@@ -3323,6 +3365,7 @@ export default function TodaysMeApp() {
             <header className="top">
               <div className="top-row">
                 <div className="brand display-font">TodayLab</div>
+                {weatherEmoji && <div className="weather-emoji">{weatherEmoji}</div>}
                 <div className="date-chip">{todayLabel}</div>
               </div>
               <div className="top-row" style={{ marginTop: 10 }}>
