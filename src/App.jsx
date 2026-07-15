@@ -2701,10 +2701,13 @@ export default function TodaysMeApp() {
         .top-row { display:flex; align-items:center; justify-content:space-between; }
         .brand { font-size: 22px; letter-spacing: -0.01em; }
         .weather-emoji {
-          font-size: 24px;
+          font-size: 14px;
           line-height: 1;
+          margin-right: 5px;
         }
         .date-chip {
+          display: inline-flex;
+          align-items: center;
           font-size: 12px;
           color: var(--text-lo);
           background: var(--surface);
@@ -3365,8 +3368,10 @@ export default function TodaysMeApp() {
             <header className="top">
               <div className="top-row">
                 <div className="brand display-font">TodayLab</div>
-                {weatherEmoji && <div className="weather-emoji">{weatherEmoji}</div>}
-                <div className="date-chip">{todayLabel}</div>
+                <div className="date-chip">
+                  {weatherEmoji && <span className="weather-emoji">{weatherEmoji}</span>}
+                  {todayLabel}
+                </div>
               </div>
               <div className="top-row" style={{ marginTop: 10 }}>
                 <span style={{ fontSize: 12, color: "var(--text-lo)" }}>
